@@ -139,12 +139,31 @@ namespace FindGT
                 ulong.TryParse(session.Value.Luid, out luid);
                 LUID userLuid = new LUID(luid);
                 IntPtr hToken = Creds.NegotiateToken(userLuid, null, true);
-                List<string> groupSids = Helpers.GetTokenGroups(hToken).Where(g => g.StartsWith("S-1-5-21-") && g != "S-1-5-21-0-0-0-497" && !g.StartsWith(MachineSIDString)).ToList();
-                
-                
                 Dictionary<string, string> groupMembership = new Dictionary<string, string>();
                 string sidString = session.Value.SID;
                 SecurityIdentifier sid = new SecurityIdentifier(sidString);
+
+                List<string> groupSids = Helpers.GetTokenGroups(hToken).Where(g => g.StartsWith("S-1-5-21-") && g != "S-1-5-21-0-0-0-497" && !g.StartsWith(MachineSIDString)).ToList();
+
+                PrincipalContext principalContext = new PrincipalContext(ContextType.Domain, Domain.GetComputerDomain().Name);
+                foreach (var group in groupSids)
+                {
+                    Principal foundPrincipal = Principal.FindByIdentity(principalContext, IdentityType.Sid, group);
+
+                    if (foundPrincipal is GroupPrincipal)
+                    {
+                        //Console.WriteLine($"The object with SID {sidToCheck} is a Group.");
+                    }
+                    else if (foundPrincipal is UserPrincipal)
+                    {
+                        Console.WriteLine($"Token on User {sid} in Session {string.Format("0x{0:X}", luid)}\nContains object with SID {group} that is a User.");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"Token on User {sid} in Session {string.Format("0x{0:X}", luid)}\nContains object with SID {group} of some type or does not exist.");
+                    }
+                }
+
                 try
                 {
                     GetGroups(sid, groupMembership, Domain.GetComputerDomain().Name);
@@ -154,6 +173,8 @@ namespace FindGT
                 {
                     Console.WriteLine($"An error occurred: {ex.Message}");
                 }
+
+
                 foreach (var group in groupSids)
                     if (!groupMembership.ContainsKey(group))
                         Console.WriteLine("Token on User {0} in Session {1} contains {2} but doesn't", sid, string.Format("0x{0:X}", luid), group);
