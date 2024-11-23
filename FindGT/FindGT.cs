@@ -9,11 +9,20 @@ using System.DirectoryServices;
 using System.Collections;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Diagnostics;
+using CommandLine;
 
 namespace FindGT
 {
     public static class FindGT
     {
+        // Class to define command line options
+        public class Options
+        {
+            [Option("console", Default = false, HelpText = "Output session information to console.")]
+            public bool ConsoleOutput { get; set; }
+        }
+
         static void GetGroups(SecurityIdentifier sid, Dictionary<string, string> groupMemberships, string domainName)
         {
             try
@@ -68,27 +77,62 @@ namespace FindGT
             }
         }
 
-        static void Main(string[] args)
+        /// <summary>
+        /// Метод для записи в журнал событий Windows
+        /// </summary>
+        /// <param name="message">Сообщение</param>
+        /// <param name="entryType">Тип записи</param>
+        static void WriteToEventLog(string message, EventLogEntryType entryType)
         {
+            string source = "FindGT";
+            string log = "Application";
 
+            if (!EventLog.SourceExists(source))
+            {
+                EventLog.CreateEventSource(source, log);
+            }
+
+            using (EventLog eventLog = new EventLog(log))
+            {
+                eventLog.Source = source;
+                eventLog.WriteEntry(message, entryType);
+            }
+        }
+
+        static void Main(string [] args)
+        {
+            Parser.Default.ParseArguments<Options>(args)
+                .WithParsed(options => Run(options))
+                .WithNotParsed(errors =>
+                {
+                    Console.WriteLine("Invalid arguments provided.");
+                });
+        }
+
+        private static void Run(Options options)
+        {
             if (!Helpers.IsHighIntegrity())
             {
-                Console.WriteLine("  [X] Not high integrity!");
+                if (options.ConsoleOutput)
+                    Console.WriteLine("  [X] Not high integrity!");
                 return;
             }
 
             if (Helpers.IsSystem())
             {
-                Console.WriteLine("  [*] Already SYSTEM, not elevating\n");
+                if (options.ConsoleOutput)
+                    Console.WriteLine("  [*] Already SYSTEM, not elevating\n");
             }
             else
             {
                 if (!Helpers.GetSystem())
                 {
-                    Console.WriteLine("  [X] Error elevating to SYSTEM!");
+                    if (options.ConsoleOutput)
+                        Console.WriteLine("  [X] Error elevating to SYSTEM!");
                     return;
                 }
-                Console.WriteLine("  [*] Elevated to SYSTEM\n");
+                if (options.ConsoleOutput)
+                    Console.WriteLine("  [*] Elevated to SYSTEM\n");
             }
 
             Dictionary<string, Find.FoundSession> logonSessions = Find.LogonSessions(true);
@@ -131,7 +175,8 @@ namespace FindGT
                 }
             }
             else
-                Console.WriteLine(@"Error : {0}", err);
+                if (options.ConsoleOutput)
+                    Console.WriteLine(@"Error : {0}", err);
 
             foreach (var session in logonSessions.Where(s => s.Value.AuthPackage == "Kerberos").ToList())
             {
@@ -142,6 +187,7 @@ namespace FindGT
                 Dictionary<string, string> groupMembership = new Dictionary<string, string>();
                 string sidString = session.Value.SID;
                 SecurityIdentifier sid = new SecurityIdentifier(sidString);
+                StringBuilder sb = new StringBuilder();
 
                 List<string> groupSids = Helpers.GetTokenGroups(hToken).Where(g => g.StartsWith("S-1-5-21-") && g != "S-1-5-21-0-0-0-497" && !g.StartsWith(MachineSIDString)).ToList();
 
@@ -156,11 +202,15 @@ namespace FindGT
                     }
                     else if (foundPrincipal is UserPrincipal)
                     {
-                        Console.WriteLine($"Token on User {sid} in Session {string.Format("0x{0:X}", luid)}\nContains object with SID {group} that is a User.");
+                        if (options.ConsoleOutput)
+                            Console.WriteLine($"Token on User {sid} in Session {string.Format("0x{0:X}", luid)}\nContains object with SID {group} that is a User.");
+                        sb.Append(String.Format($"Token on User {sid} in Session {string.Format("0x{0:X}", luid)}\nContains object with SID {group} that is a User.\n"));
                     }
                     else
                     {
-                        Console.WriteLine($"Token on User {sid} in Session {string.Format("0x{0:X}", luid)}\nContains object with SID {group} of some type or does not exist.");
+                        if (options.ConsoleOutput)
+                            Console.WriteLine($"Token on User {sid} in Session {string.Format("0x{0:X}", luid)}\nContains object with SID {group} of some type or does not exist.");
+                        sb.Append(String.Format($"Token on User {sid} in Session {string.Format("0x{0:X}", luid)}\nContains object with SID {group} of some type or does not exist.\n"));
                     }
                 }
 
@@ -170,19 +220,39 @@ namespace FindGT
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"An error occurred: {ex.Message}");
+                    if (options.ConsoleOutput)
+                        Console.WriteLine($"An error occurred: {ex.Message}");
+                }
+                if (options.ConsoleOutput)
+                {
+                    Console.WriteLine("Token on User {0} in Session {1} contains {2} groups", sid, string.Format("0x{0:X}", luid), groupSids.Count);
+                    Console.WriteLine("IRL User {0} belongs to {2} groups", sid, string.Format("0x{0:X}", luid), groupMembership.Count);
                 }
 
-                Console.WriteLine("Token on User {0} in Session {1} contains {2} groups", sid, string.Format("0x{0:X}", luid), groupSids.Count);
-                Console.WriteLine("IRL User {0} belongs to {2} groups", sid, string.Format("0x{0:X}", luid), groupMembership.Count);
+                sb.Append(String.Format("Token on User {0} in Session {1} contains {2} groups\n", sid, string.Format("0x{0:X}", luid), groupSids.Count));
+                sb.Append(String.Format("IRL User {0} belongs to {2} groups\n", sid, string.Format("0x{0:X}", luid), groupMembership.Count));
 
                 foreach (var group in groupSids)
                     if (!groupMembership.ContainsKey(group))
-                        Console.WriteLine("Token on User {0} in Session {1} contains {2} but doesn't", sid, string.Format("0x{0:X}", luid), group);
+                    {
+                        if (options.ConsoleOutput)
+                        {
+                            Console.WriteLine("Token on User {0} in Session {1} contains {2} but doesn't", sid, string.Format("0x{0:X}", luid), group);
+                        }
+                        sb.Append(String.Format("Token on User {0} in Session {1} contains {2} but doesn't\n", sid, string.Format("0x{0:X}", luid), group));
+                    }
 
                 foreach (var group in groupMembership)
                     if (!groupSids.Contains(group.Key))
-                        Console.WriteLine("Token on User {0} in Session {1} doesn't contains {2} but should", sid, string.Format("0x{0:X}", luid), group.Key);
+                    {
+                        if (options.ConsoleOutput)
+                        {
+                            Console.WriteLine("Token on User {0} in Session {1} doesn't contains {2} but should", sid, string.Format("0x{0:X}", luid), group.Key);
+                        }
+                        sb.Append(String.Format("Token on User {0} in Session {1} doesn't contains {2} but should\n", sid, string.Format("0x{0:X}", luid), group.Key));    
+                    }
+
+                WriteToEventLog(sb.ToString(), EventLogEntryType.Information);
             }
         }
     }
