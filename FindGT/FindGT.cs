@@ -12,7 +12,7 @@ using System.Text;
 
 namespace FindGT
 {
-    public static class Program
+    public static class FindGT
     {
         static void GetGroups(SecurityIdentifier sid, Dictionary<string, string> groupMemberships, string domainName)
         {
@@ -167,17 +167,22 @@ namespace FindGT
                 try
                 {
                     GetGroups(sid, groupMembership, Domain.GetComputerDomain().Name);
-
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"An error occurred: {ex.Message}");
                 }
 
+                Console.WriteLine("Token on User {0} in Session {1} contains {2} groups", sid, string.Format("0x{0:X}", luid), groupSids.Count);
+                Console.WriteLine("IRL User {0} belongs to {2} groups", sid, string.Format("0x{0:X}", luid), groupMembership.Count);
 
                 foreach (var group in groupSids)
                     if (!groupMembership.ContainsKey(group))
                         Console.WriteLine("Token on User {0} in Session {1} contains {2} but doesn't", sid, string.Format("0x{0:X}", luid), group);
+
+                foreach (var group in groupMembership)
+                    if (!groupSids.Contains(group.Key))
+                        Console.WriteLine("Token on User {0} in Session {1} doesn't contains {2} but should", sid, string.Format("0x{0:X}", luid), group.Key);
             }
         }
     }
