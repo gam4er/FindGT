@@ -188,6 +188,7 @@ namespace FindGT
                 string sidString = session.Value.SID;
                 SecurityIdentifier sid = new SecurityIdentifier(sidString);
                 StringBuilder sb = new StringBuilder();
+                var logLevel = EventLogEntryType.Information;
 
                 List<string> groupSids = Helpers.GetTokenGroups(hToken).Where(g => g.StartsWith("S-1-5-21-") && g != "S-1-5-21-0-0-0-497" && !g.StartsWith(MachineSIDString)).ToList();
 
@@ -240,6 +241,8 @@ namespace FindGT
                             Console.WriteLine("Token on User {0} in Session {1} contains {2} but doesn't", sid, string.Format("0x{0:X}", luid), group);
                         }
                         sb.Append(String.Format("Token on User {0} in Session {1} contains {2} but doesn't\n", sid, string.Format("0x{0:X}", luid), group));
+
+                        logLevel = EventLogEntryType.Warning;
                     }
 
                 foreach (var group in groupMembership)
@@ -249,10 +252,11 @@ namespace FindGT
                         {
                             Console.WriteLine("Token on User {0} in Session {1} doesn't contains {2} but should", sid, string.Format("0x{0:X}", luid), group.Key);
                         }
-                        sb.Append(String.Format("Token on User {0} in Session {1} doesn't contains {2} but should\n", sid, string.Format("0x{0:X}", luid), group.Key));    
+                        sb.Append(String.Format("Token on User {0} in Session {1} doesn't contains {2} but should\n", sid, string.Format("0x{0:X}", luid), group.Key));
+                        logLevel = EventLogEntryType.Warning;
                     }
 
-                WriteToEventLog(sb.ToString(), EventLogEntryType.Information);
+                WriteToEventLog(sb.ToString(), logLevel);
             }
         }
     }
