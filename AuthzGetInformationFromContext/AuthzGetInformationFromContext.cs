@@ -45,8 +45,8 @@ namespace AuthzGetInformationFromContext
         {
             try
             {
-                string userSidString = "S-1-5-21-1430328663-2098613005-1233803906-99829";
-                string dcName = "avp.ru";
+                string userSidString = "";
+                string dcName = "";
                 string [] groupSids = AuthzWrapper.GetUserGroupSids(userSidString, dcName);
 
                 Console.WriteLine("Groups:");
