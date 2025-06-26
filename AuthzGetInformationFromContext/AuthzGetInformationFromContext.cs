@@ -115,7 +115,7 @@ namespace AuthzGetInformationFromContext
                 rpcInitInfo.version = NativeMethods.AuthzRpcClientVersion.V1;
                 rpcInitInfo.objectUuid = "9a81c2bd-a525-471d-a4ed-49907c0b23da";
                 rpcInitInfo.protocol = NativeMethods.RCP_OVER_TCP_PROTOCOL;
-                rpcInitInfo.server = "avp.ru";
+                rpcInitInfo.server = "";
 
                 SafeAuthzRMHandle authzRM;
 
