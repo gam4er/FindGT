@@ -41,6 +41,16 @@ namespace FindGT
             CachedUnlock            // attempt to unlock a workstation
         }
 
+        public enum MSV1_0_LOGON_SUBMIT_TYPE : uint
+        {
+            MsV1_0InteractiveLogon = 2,
+            MsV1_0Lm20Logon,
+            MsV1_0NetworkLogon,
+            MsV1_0SubAuthLogon,
+            MsV1_0WorkstationUnlockLogon = 7,
+            MsV1_0S4ULogon = 12
+        }
+
         public enum TOKEN_INFORMATION_CLASS
         {
             TokenUser = 1,
@@ -112,6 +122,12 @@ namespace FindGT
         }
 
         [StructLayout(LayoutKind.Sequential)]
+        public struct TOKEN_PRIMARY_GROUP
+        {
+            public IntPtr PrimaryGroup;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
         public struct LUID_AND_ATTRIBUTES
         {
             public LUID Luid;
@@ -125,6 +141,14 @@ namespace FindGT
 
         [StructLayout(LayoutKind.Sequential)]
         public struct LSA_STRING
+        {
+            public ushort Length;
+            public ushort MaximumLength;
+            public IntPtr Buffer;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct UNICODE_STRING
         {
             public ushort Length;
             public ushort MaximumLength;
@@ -189,6 +213,34 @@ namespace FindGT
                 }
             }
         };
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct TOKEN_SOURCE
+        {
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 8)]
+            public byte[] SourceName;
+            public LUID SourceIdentifier;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct QUOTA_LIMITS
+        {
+            public UIntPtr PagedPoolLimit;
+            public UIntPtr NonPagedPoolLimit;
+            public UIntPtr MinimumWorkingSetSize;
+            public UIntPtr MaximumWorkingSetSize;
+            public UIntPtr PagefileLimit;
+            public long TimeLimit;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MSV1_0_S4U_LOGON
+        {
+            public MSV1_0_LOGON_SUBMIT_TYPE MessageType;
+            public uint Flags;
+            public UNICODE_STRING UserPrincipalName;
+            public UNICODE_STRING DomainName;
+        }
 
         #endregion
 
@@ -326,6 +378,49 @@ namespace FindGT
             IntPtr luid,
             out IntPtr ppLogonSessionData
         );
+
+        [DllImport("Secur32.dll", SetLastError = false)]
+        public static extern uint LsaRegisterLogonProcess(
+            ref LSA_STRING LogonProcessName,
+            out IntPtr LsaHandle,
+            out ulong SecurityMode
+        );
+
+        [DllImport("Secur32.dll", SetLastError = false)]
+        public static extern uint LsaDeregisterLogonProcess(
+            IntPtr LsaHandle
+        );
+
+        [DllImport("Secur32.dll", SetLastError = false)]
+        public static extern uint LsaLookupAuthenticationPackage(
+            IntPtr LsaHandle,
+            ref LSA_STRING PackageName,
+            out uint AuthenticationPackage
+        );
+
+        [DllImport("Secur32.dll", SetLastError = false)]
+        public static extern uint LsaLogonUser(
+            IntPtr LsaHandle,
+            ref LSA_STRING OriginName,
+            SECURITY_LOGON_TYPE LogonType,
+            uint AuthenticationPackage,
+            IntPtr AuthenticationInformation,
+            uint AuthenticationInformationLength,
+            IntPtr LocalGroups,
+            ref TOKEN_SOURCE SourceContext,
+            out IntPtr ProfileBuffer,
+            out uint ProfileBufferLength,
+            out LUID LogonId,
+            out IntPtr Token,
+            out QUOTA_LIMITS Quotas,
+            out uint SubStatus
+        );
+
+        [DllImport("Secur32.dll", SetLastError = false)]
+        public static extern uint LsaNtStatusToWinError(uint Status);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public static extern bool AllocateLocallyUniqueId(out LUID Luid);
 
         [DllImport("advapi32.dll", SetLastError = true)]
         public static extern bool GetTokenInformation(

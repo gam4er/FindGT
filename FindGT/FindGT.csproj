@@ -93,6 +93,8 @@
     <Compile Include="Helpers.cs" />
     <Compile Include="Interop.cs" />
     <Compile Include="LUID.cs" />
+    <Compile Include="NetlogonHelper.cs" />
+    <Compile Include="NetlogonValidationSamInfo.cs" />
     <Compile Include="FindGT.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SecBuffer.cs" />

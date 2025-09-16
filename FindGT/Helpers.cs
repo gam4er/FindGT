@@ -45,6 +45,76 @@ namespace FindGT
             return groupSids;
         }
 
+        public struct TokenGroup
+        {
+            public SecurityIdentifier Sid;
+            public uint Attributes;
+        }
+
+        public static List<TokenGroup> GetTokenGroupsWithAttributes(IntPtr token)
+        {
+            List<TokenGroup> groups = new List<TokenGroup>();
+            IntPtr pGroups = IntPtr.Zero;
+
+            try
+            {
+                pGroups = GetTokenInfo(token, Interop.TOKEN_INFORMATION_CLASS.TokenGroups);
+                Interop.TOKEN_GROUPS tokenGroups = (Interop.TOKEN_GROUPS)Marshal.PtrToStructure(pGroups, typeof(Interop.TOKEN_GROUPS));
+
+                int sidAndAttrSize = Marshal.SizeOf(typeof(Interop.SID_AND_ATTRIBUTES));
+                IntPtr groupsPtr = new IntPtr(pGroups.ToInt64() + Marshal.OffsetOf(typeof(Interop.TOKEN_GROUPS), "Groups").ToInt64());
+
+                for (int i = 0; i < tokenGroups.GroupCount; i++)
+                {
+                    IntPtr entryPtr = new IntPtr(groupsPtr.ToInt64() + sidAndAttrSize * i);
+                    Interop.SID_AND_ATTRIBUTES sidAndAttributes = (Interop.SID_AND_ATTRIBUTES)Marshal.PtrToStructure(entryPtr, typeof(Interop.SID_AND_ATTRIBUTES));
+
+                    if (sidAndAttributes.Sid != IntPtr.Zero)
+                    {
+                        groups.Add(new TokenGroup
+                        {
+                            Sid = new SecurityIdentifier(sidAndAttributes.Sid),
+                            Attributes = sidAndAttributes.Attributes
+                        });
+                    }
+                }
+            }
+            finally
+            {
+                if (pGroups != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(pGroups);
+                }
+            }
+
+            return groups;
+        }
+
+        public static SecurityIdentifier GetTokenPrimaryGroup(IntPtr token)
+        {
+            IntPtr pPrimaryGroup = IntPtr.Zero;
+
+            try
+            {
+                pPrimaryGroup = GetTokenInfo(token, Interop.TOKEN_INFORMATION_CLASS.TokenPrimaryGroup);
+                Interop.TOKEN_PRIMARY_GROUP primaryGroup = (Interop.TOKEN_PRIMARY_GROUP)Marshal.PtrToStructure(pPrimaryGroup, typeof(Interop.TOKEN_PRIMARY_GROUP));
+
+                if (primaryGroup.PrimaryGroup == IntPtr.Zero)
+                {
+                    return null;
+                }
+
+                return new SecurityIdentifier(primaryGroup.PrimaryGroup);
+            }
+            finally
+            {
+                if (pPrimaryGroup != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(pPrimaryGroup);
+                }
+            }
+        }
+
         public static IntPtr GetTokenInfo(IntPtr token, Interop.TOKEN_INFORMATION_CLASS informationClass)
         {
             // Wrapper that uses GetTokenInformation to retrieve the specified TOKEN_INFORMATION_CLASS
