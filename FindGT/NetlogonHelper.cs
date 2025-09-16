@@ -78,8 +78,6 @@ namespace FindGT
             IntPtr logonProcessBuffer = IntPtr.Zero;
             IntPtr originNameBuffer = IntPtr.Zero;
             IntPtr packageNameBuffer = IntPtr.Zero;
-            IntPtr upnBuffer = IntPtr.Zero;
-            IntPtr domainBuffer = IntPtr.Zero;
             IntPtr logonBuffer = IntPtr.Zero;
             IntPtr profileBuffer = IntPtr.Zero;
             IntPtr tokenHandle = IntPtr.Zero;
@@ -107,8 +105,10 @@ namespace FindGT
                 }
 
                 string upnValue = BuildUpn(samAccountName, dnsDomainName, userName);
-                Interop.UNICODE_STRING userPrincipalName = CreateUnicodeString(upnValue, out upnBuffer);
-                Interop.UNICODE_STRING domainName = CreateUnicodeString(explicitDomain, out domainBuffer);
+                byte[] userPrincipalNameBytes;
+                Interop.UNICODE_STRING userPrincipalName = CreateUnicodeString(upnValue, out userPrincipalNameBytes);
+                byte[] domainNameBytes;
+                Interop.UNICODE_STRING domainName = CreateUnicodeString(explicitDomain, out domainNameBytes);
 
                 Interop.MSV1_0_S4U_LOGON s4uLogon = new Interop.MSV1_0_S4U_LOGON
                 {
@@ -118,8 +118,29 @@ namespace FindGT
                     DomainName = domainName
                 };
 
-                int logonSize = Marshal.SizeOf(typeof(Interop.MSV1_0_S4U_LOGON));
-                logonBuffer = Marshal.AllocHGlobal(logonSize);
+                int fixedLogonSize = Marshal.SizeOf(typeof(Interop.MSV1_0_S4U_LOGON));
+                int userPrincipalNameLength = userPrincipalNameBytes != null ? userPrincipalNameBytes.Length : 0;
+                int domainNameLength = domainNameBytes != null ? domainNameBytes.Length : 0;
+                int totalLogonSize = fixedLogonSize + userPrincipalNameLength + domainNameLength;
+
+                logonBuffer = Marshal.AllocHGlobal(totalLogonSize);
+
+                IntPtr currentBuffer = IntPtr.Add(logonBuffer, fixedLogonSize);
+
+                if (userPrincipalNameLength > 0)
+                {
+                    s4uLogon.UserPrincipalName.Buffer = currentBuffer;
+                    Marshal.Copy(userPrincipalNameBytes, 0, currentBuffer, userPrincipalNameLength);
+                    currentBuffer = IntPtr.Add(currentBuffer, userPrincipalNameLength);
+                }
+
+                if (domainNameLength > 0)
+                {
+                    s4uLogon.DomainName.Buffer = currentBuffer;
+                    Marshal.Copy(domainNameBytes, 0, currentBuffer, domainNameLength);
+                    currentBuffer = IntPtr.Add(currentBuffer, domainNameLength);
+                }
+
                 Marshal.StructureToPtr(s4uLogon, logonBuffer, false);
 
                 Interop.TOKEN_SOURCE sourceContext = new Interop.TOKEN_SOURCE
@@ -146,7 +167,7 @@ namespace FindGT
                     Interop.SECURITY_LOGON_TYPE.Network,
                     authenticationPackage,
                     logonBuffer,
-                    (uint)logonSize,
+                    (uint)totalLogonSize,
                     IntPtr.Zero,
                     ref sourceContext,
                     out profileBuffer,
@@ -179,16 +200,6 @@ namespace FindGT
                 if (logonBuffer != IntPtr.Zero)
                 {
                     Marshal.FreeHGlobal(logonBuffer);
-                }
-
-                if (upnBuffer != IntPtr.Zero)
-                {
-                    Marshal.FreeHGlobal(upnBuffer);
-                }
-
-                if (domainBuffer != IntPtr.Zero)
-                {
-                    Marshal.FreeHGlobal(domainBuffer);
                 }
 
                 if (packageNameBuffer != IntPtr.Zero)
@@ -293,11 +304,11 @@ namespace FindGT
             };
         }
 
-        private static Interop.UNICODE_STRING CreateUnicodeString(string value, out IntPtr buffer)
+        private static Interop.UNICODE_STRING CreateUnicodeString(string value, out byte[] buffer)
         {
             if (string.IsNullOrEmpty(value))
             {
-                buffer = IntPtr.Zero;
+                buffer = null;
                 return new Interop.UNICODE_STRING
                 {
                     Length = 0,
@@ -306,12 +317,12 @@ namespace FindGT
                 };
             }
 
-            buffer = Marshal.StringToHGlobalUni(value);
+            buffer = Encoding.Unicode.GetBytes(value + "\0");
             return new Interop.UNICODE_STRING
             {
-                Length = (ushort)(value.Length * 2),
-                MaximumLength = (ushort)((value.Length + 1) * 2),
-                Buffer = buffer
+                Length = (ushort)(buffer.Length - 2),
+                MaximumLength = (ushort)buffer.Length,
+                Buffer = IntPtr.Zero
             };
         }
 
