@@ -416,7 +416,7 @@ namespace FindGT
             out uint SubStatus
         );
 
-        [DllImport("Secur32.dll", SetLastError = false)]
+        [DllImport("Advapi32.dll", SetLastError = false)]
         public static extern uint LsaNtStatusToWinError(uint Status);
 
         [DllImport("advapi32.dll", SetLastError = true)]
