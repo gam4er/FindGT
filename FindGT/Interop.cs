@@ -422,6 +422,7 @@ namespace FindGT
         [DllImport("advapi32.dll", SetLastError = true)]
         public static extern bool AllocateLocallyUniqueId(out LUID Luid);
 
+
         [DllImport("advapi32.dll", SetLastError = true)]
         public static extern bool GetTokenInformation(
             IntPtr TokenHandle,

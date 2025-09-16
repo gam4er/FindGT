@@ -132,6 +132,7 @@ namespace FindGT
                 if (!Interop.AllocateLocallyUniqueId(out sourceContext.SourceIdentifier))
                 {
                     throw new Win32Exception(Marshal.GetLastWin32Error());
+
                 }
 
                 LUID logonId;
