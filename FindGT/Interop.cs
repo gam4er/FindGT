@@ -419,7 +419,7 @@ namespace FindGT
         [DllImport("Secur32.dll", SetLastError = false)]
         public static extern uint LsaNtStatusToWinError(uint Status);
 
-        [DllImport("Secur32.dll", SetLastError = false)]
+        [DllImport("advapi32.dll", SetLastError = false)]
         public static extern uint LsaAllocateLocallyUniqueId(out LUID Luid);
 
         [DllImport("advapi32.dll", SetLastError = true)]
