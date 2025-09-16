@@ -78,8 +78,6 @@ namespace FindGT
             IntPtr logonProcessBuffer = IntPtr.Zero;
             IntPtr originNameBuffer = IntPtr.Zero;
             IntPtr packageNameBuffer = IntPtr.Zero;
-            IntPtr upnBuffer = IntPtr.Zero;
-            IntPtr domainBuffer = IntPtr.Zero;
             IntPtr logonBuffer = IntPtr.Zero;
             IntPtr profileBuffer = IntPtr.Zero;
             IntPtr tokenHandle = IntPtr.Zero;
@@ -107,20 +105,8 @@ namespace FindGT
                 }
 
                 string upnValue = BuildUpn(samAccountName, dnsDomainName, userName);
-                Interop.UNICODE_STRING userPrincipalName = CreateUnicodeString(upnValue, out upnBuffer);
-                Interop.UNICODE_STRING domainName = CreateUnicodeString(explicitDomain, out domainBuffer);
-
-                Interop.MSV1_0_S4U_LOGON s4uLogon = new Interop.MSV1_0_S4U_LOGON
-                {
-                    MessageType = Interop.MSV1_0_LOGON_SUBMIT_TYPE.MsV1_0S4ULogon,
-                    Flags = 0,
-                    UserPrincipalName = userPrincipalName,
-                    DomainName = domainName
-                };
-
-                int logonSize = Marshal.SizeOf(typeof(Interop.MSV1_0_S4U_LOGON));
-                logonBuffer = Marshal.AllocHGlobal(logonSize);
-                Marshal.StructureToPtr(s4uLogon, logonBuffer, false);
+                uint logonSize;
+                logonBuffer = CreateS4ULogonBuffer(upnValue, explicitDomain, out logonSize);
 
                 Interop.TOKEN_SOURCE sourceContext = new Interop.TOKEN_SOURCE
                 {
@@ -146,7 +132,7 @@ namespace FindGT
                     Interop.SECURITY_LOGON_TYPE.Network,
                     authenticationPackage,
                     logonBuffer,
-                    (uint)logonSize,
+                    logonSize,
                     IntPtr.Zero,
                     ref sourceContext,
                     out profileBuffer,
@@ -179,16 +165,6 @@ namespace FindGT
                 if (logonBuffer != IntPtr.Zero)
                 {
                     Marshal.FreeHGlobal(logonBuffer);
-                }
-
-                if (upnBuffer != IntPtr.Zero)
-                {
-                    Marshal.FreeHGlobal(upnBuffer);
-                }
-
-                if (domainBuffer != IntPtr.Zero)
-                {
-                    Marshal.FreeHGlobal(domainBuffer);
                 }
 
                 if (packageNameBuffer != IntPtr.Zero)
@@ -293,26 +269,114 @@ namespace FindGT
             };
         }
 
-        private static Interop.UNICODE_STRING CreateUnicodeString(string value, out IntPtr buffer)
+        private static IntPtr CreateS4ULogonBuffer(string userPrincipalName, string domainName, out uint bufferSize)
         {
-            if (string.IsNullOrEmpty(value))
+            int structSize = Marshal.SizeOf(typeof(Interop.MSV1_0_S4U_LOGON));
+            int upnLength = string.IsNullOrEmpty(userPrincipalName) ? 0 : Encoding.Unicode.GetByteCount(userPrincipalName);
+            int domainLength = string.IsNullOrEmpty(domainName) ? 0 : Encoding.Unicode.GetByteCount(domainName);
+
+            if (upnLength > ushort.MaxValue - sizeof(char))
             {
-                buffer = IntPtr.Zero;
-                return new Interop.UNICODE_STRING
-                {
-                    Length = 0,
-                    MaximumLength = 0,
-                    Buffer = IntPtr.Zero
-                };
+                throw new ArgumentOutOfRangeException(nameof(userPrincipalName), "User principal name is too long for UNICODE_STRING.");
             }
 
-            buffer = Marshal.StringToHGlobalUni(value);
-            return new Interop.UNICODE_STRING
+            if (domainLength > ushort.MaxValue - sizeof(char))
             {
-                Length = (ushort)(value.Length * 2),
-                MaximumLength = (ushort)((value.Length + 1) * 2),
-                Buffer = buffer
+                throw new ArgumentOutOfRangeException(nameof(domainName), "Domain name is too long for UNICODE_STRING.");
+            }
+
+            long totalSize = structSize;
+
+            if (upnLength > 0)
+            {
+                totalSize = AlignUp(totalSize, IntPtr.Size);
+                totalSize += upnLength + sizeof(char);
+            }
+
+            if (domainLength > 0)
+            {
+                totalSize = AlignUp(totalSize, IntPtr.Size);
+                totalSize += domainLength + sizeof(char);
+            }
+
+            if (totalSize > int.MaxValue)
+            {
+                throw new InvalidOperationException("Calculated logon buffer size exceeds supported limits.");
+            }
+
+            IntPtr buffer = Marshal.AllocHGlobal((int)totalSize);
+            IntPtr current = IntPtr.Add(buffer, structSize);
+
+            Interop.UNICODE_STRING upn = new Interop.UNICODE_STRING();
+            if (upnLength > 0)
+            {
+                current = AlignPointer(current, IntPtr.Size);
+                upn.Length = (ushort)upnLength;
+                upn.MaximumLength = (ushort)(upnLength + sizeof(char));
+                upn.Buffer = current;
+                WriteUnicodeStringToPointer(userPrincipalName, upn.Buffer);
+                current = IntPtr.Add(current, upn.MaximumLength);
+            }
+            else
+            {
+                upn.Length = 0;
+                upn.MaximumLength = 0;
+                upn.Buffer = IntPtr.Zero;
+            }
+
+            Interop.UNICODE_STRING domain = new Interop.UNICODE_STRING();
+            if (domainLength > 0)
+            {
+                current = AlignPointer(current, IntPtr.Size);
+                domain.Length = (ushort)domainLength;
+                domain.MaximumLength = (ushort)(domainLength + sizeof(char));
+                domain.Buffer = current;
+                WriteUnicodeStringToPointer(domainName, domain.Buffer);
+                current = IntPtr.Add(current, domain.MaximumLength);
+            }
+            else
+            {
+                domain.Length = 0;
+                domain.MaximumLength = 0;
+                domain.Buffer = IntPtr.Zero;
+            }
+
+            Interop.MSV1_0_S4U_LOGON logon = new Interop.MSV1_0_S4U_LOGON
+            {
+                MessageType = Interop.MSV1_0_LOGON_SUBMIT_TYPE.MsV1_0S4ULogon,
+                Flags = 0,
+                UserPrincipalName = upn,
+                DomainName = domain
             };
+
+            Marshal.StructureToPtr(logon, buffer, false);
+
+            bufferSize = (uint)totalSize;
+            return buffer;
+        }
+
+        private static void WriteUnicodeStringToPointer(string value, IntPtr buffer)
+        {
+            if (buffer == IntPtr.Zero || string.IsNullOrEmpty(value))
+            {
+                return;
+            }
+
+            byte[] data = Encoding.Unicode.GetBytes(value);
+            Marshal.Copy(data, 0, buffer, data.Length);
+            Marshal.WriteInt16(buffer, data.Length, 0);
+        }
+
+        private static long AlignUp(long value, int alignment)
+        {
+            long mask = alignment - 1;
+            return (value + mask) & ~mask;
+        }
+
+        private static IntPtr AlignPointer(IntPtr pointer, int alignment)
+        {
+            long aligned = AlignUp(pointer.ToInt64(), alignment);
+            return new IntPtr(aligned);
         }
 
         private static uint GetRid(SecurityIdentifier sid)
