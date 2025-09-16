@@ -133,57 +133,135 @@ namespace FindGT
             else
                 Console.WriteLine(@"Error : {0}", err);
 
+            string domainDnsName = null;
+            string domainControllerName = null;
+            PrincipalContext principalContext = null;
+
+            try
+            {
+                Domain computerDomain = Domain.GetComputerDomain();
+                domainDnsName = computerDomain.Name;
+                DomainController domainController = computerDomain.FindDomainController();
+                domainControllerName = domainController.Name;
+                principalContext = new PrincipalContext(ContextType.Domain, domainDnsName);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"  [!] Unable to resolve domain controller information: {ex.Message}");
+            }
+
             foreach (var session in logonSessions.Where(s => s.Value.AuthPackage == "Kerberos").ToList())
             {
                 ulong luid = 0;
                 ulong.TryParse(session.Value.Luid, out luid);
                 LUID userLuid = new LUID(luid);
                 IntPtr hToken = Creds.NegotiateToken(userLuid, null, true);
-                Dictionary<string, string> groupMembership = new Dictionary<string, string>();
                 string sidString = session.Value.SID;
                 SecurityIdentifier sid = new SecurityIdentifier(sidString);
 
-                List<string> groupSids = Helpers.GetTokenGroups(hToken).Where(g => g.StartsWith("S-1-5-21-") && g != "S-1-5-21-0-0-0-497" && !g.StartsWith(MachineSIDString)).ToList();
+                List<string> groupSids = Helpers.GetTokenGroups(hToken)
+                    .Where(g => g.StartsWith("S-1-5-21-") && g != "S-1-5-21-0-0-0-497" && !g.StartsWith(MachineSIDString))
+                    .ToList();
 
-                PrincipalContext principalContext = new PrincipalContext(ContextType.Domain, Domain.GetComputerDomain().Name);
-                foreach (var group in groupSids)
+                if (principalContext != null)
                 {
-                    Principal foundPrincipal = Principal.FindByIdentity(principalContext, IdentityType.Sid, group);
+                    foreach (var group in groupSids)
+                    {
+                        try
+                        {
+                            Principal foundPrincipal = Principal.FindByIdentity(principalContext, IdentityType.Sid, group);
 
-                    if (foundPrincipal is GroupPrincipal)
-                    {
-                        //Console.WriteLine($"The object with SID {sidToCheck} is a Group.");
-                    }
-                    else if (foundPrincipal is UserPrincipal)
-                    {
-                        Console.WriteLine($"Token on User {sid} in Session {string.Format("0x{0:X}", luid)}\nContains object with SID {group} that is a User.");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"Token on User {sid} in Session {string.Format("0x{0:X}", luid)}\nContains object with SID {group} of some type or does not exist.");
+                            if (foundPrincipal is UserPrincipal)
+                            {
+                                Console.WriteLine($"Token on User {sid} in Session {string.Format("0x{0:X}", luid)}\nContains object with SID {group} that is a User.");
+                            }
+                            else if (foundPrincipal == null)
+                            {
+                                Console.WriteLine($"Token on User {sid} in Session {string.Format("0x{0:X}", luid)}\nContains object with SID {group} that could not be resolved.");
+                            }
+                        }
+                        catch (Exception lookupEx)
+                        {
+                            Console.WriteLine($"  [!] Failed to resolve SID {group}: {lookupEx.Message}");
+                        }
                     }
                 }
 
+                HashSet<string> netlogonGroupSids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 try
                 {
-                    GetGroups(sid, groupMembership, Domain.GetComputerDomain().Name);
+                    string userDomainNetbios = null;
+                    string sessionUserName = session.Value.UserName ?? string.Empty;
+                    int separatorIndex = sessionUserName.IndexOf('\\');
+                    if (separatorIndex >= 0)
+                    {
+                        userDomainNetbios = sessionUserName.Substring(0, separatorIndex);
+                    }
+
+                    NetlogonValidationSamInfo validationInfo = NetlogonHelper.GetValidationSamInfo(
+                        sid,
+                        session.Value.UserName,
+                        userDomainNetbios,
+                        domainDnsName,
+                        domainControllerName);
+
+                    if (validationInfo != null)
+                    {
+                        if (validationInfo.LogonDomainId != null && validationInfo.GroupIds != null)
+                        {
+                            string domainSidValue = validationInfo.LogonDomainId.Value;
+                            foreach (var membership in validationInfo.GroupIds)
+                            {
+                                try
+                                {
+                                    SecurityIdentifier groupSid = new SecurityIdentifier(domainSidValue + "-" + membership.RelativeId);
+                                    netlogonGroupSids.Add(groupSid.Value);
+                                }
+                                catch (Exception buildEx)
+                                {
+                                    Console.WriteLine($"  [!] Failed to build SID for RID {membership.RelativeId}: {buildEx.Message}");
+                                }
+                            }
+                        }
+
+                        if (validationInfo.ExtraSids != null)
+                        {
+                            foreach (var extra in validationInfo.ExtraSids)
+                            {
+                                if (extra.Sid != null)
+                                {
+                                    netlogonGroupSids.Add(extra.Sid.Value);
+                                }
+                            }
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"An error occurred: {ex.Message}");
+                    Console.WriteLine($"  [!] Netlogon lookup failed for {session.Value.UserName}: {ex.Message}");
                 }
 
                 Console.WriteLine("Token on User {0} in Session {1} contains {2} groups", sid, string.Format("0x{0:X}", luid), groupSids.Count);
-                Console.WriteLine("IRL User {0} belongs to {2} groups", sid, string.Format("0x{0:X}", luid), groupMembership.Count);
+                Console.WriteLine("Netlogon reports {0} groups for {1}", netlogonGroupSids.Count, sid);
 
                 foreach (var group in groupSids)
-                    if (!groupMembership.ContainsKey(group))
-                        Console.WriteLine("Token on User {0} in Session {1} contains {2} but doesn't", sid, string.Format("0x{0:X}", luid), group);
+                {
+                    if (!netlogonGroupSids.Contains(group))
+                    {
+                        Console.WriteLine("Token on User {0} in Session {1} contains {2} but Netlogon membership does not", sid, string.Format("0x{0:X}", luid), group);
+                    }
+                }
 
-                foreach (var group in groupMembership)
-                    if (!groupSids.Contains(group.Key))
-                        Console.WriteLine("Token on User {0} in Session {1} doesn't contains {2} but should", sid, string.Format("0x{0:X}", luid), group.Key);
+                foreach (var groupSid in netlogonGroupSids)
+                {
+                    if (!groupSids.Contains(groupSid))
+                    {
+                        Console.WriteLine("Token on User {0} in Session {1} doesn't contain {2} but Netlogon membership includes it", sid, string.Format("0x{0:X}", luid), groupSid);
+                    }
+                }
             }
+
+            principalContext?.Dispose();
         }
     }
 }
