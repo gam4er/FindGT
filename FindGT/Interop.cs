@@ -419,8 +419,9 @@ namespace FindGT
         [DllImport("Secur32.dll", SetLastError = false)]
         public static extern uint LsaNtStatusToWinError(uint Status);
 
-        [DllImport("advapi32.dll", SetLastError = false)]
-        public static extern uint LsaAllocateLocallyUniqueId(out LUID Luid);
+        [DllImport("advapi32.dll", SetLastError = true)]
+        public static extern bool AllocateLocallyUniqueId(out LUID Luid);
+
 
         [DllImport("advapi32.dll", SetLastError = true)]
         public static extern bool GetTokenInformation(

@@ -129,10 +129,10 @@ namespace FindGT
                 byte[] sourceNameBytes = Encoding.ASCII.GetBytes(LogonProcessName);
                 Array.Copy(sourceNameBytes, sourceContext.SourceName, Math.Min(sourceNameBytes.Length, sourceContext.SourceName.Length));
 
-                ntstatus = Interop.LsaAllocateLocallyUniqueId(out sourceContext.SourceIdentifier);
-                if (ntstatus != 0)
+                if (!Interop.AllocateLocallyUniqueId(out sourceContext.SourceIdentifier))
                 {
-                    throw new Win32Exception((int)Interop.LsaNtStatusToWinError(ntstatus));
+                    throw new Win32Exception(Marshal.GetLastWin32Error());
+
                 }
 
                 LUID logonId;
