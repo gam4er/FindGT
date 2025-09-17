@@ -51,6 +51,15 @@ namespace FindGT
             MsV1_0S4ULogon = 12
         }
 
+        public enum KERB_LOGON_SUBMIT_TYPE : uint
+        {
+            KerbInteractiveLogon = 2,
+            KerbServiceLogon,
+            KerbSmartCardLogon,
+            KerbWorkstationUnlockLogon = 7,
+            KerbS4ULogon = 12
+        }
+
         public enum TOKEN_INFORMATION_CLASS
         {
             TokenUser = 1,
@@ -240,6 +249,15 @@ namespace FindGT
             public uint Flags;
             public UNICODE_STRING UserPrincipalName;
             public UNICODE_STRING DomainName;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct KERB_S4U_LOGON
+        {
+            public KERB_LOGON_SUBMIT_TYPE MessageType;
+            public uint Flags;
+            public UNICODE_STRING ClientUpn;
+            public UNICODE_STRING ClientRealm;
         }
 
         #endregion

@@ -12,6 +12,10 @@ namespace FindGT
         private const uint LOGON_EXTRA_SIDS = 0x20;
         private const string LogonProcessName = "FindGT";
         private const string AuthenticationPackage = "MICROSOFT_AUTHENTICATION_PACKAGE_V1_0";
+        private const string KerberosAuthenticationPackage = "Kerberos";
+
+        private const uint STATUS_NOT_SUPPORTED = 0xC00000BB;
+        private const uint STATUS_NO_S4U_PROT_SUPPORT = 0xC000040A;
 
         public static NetlogonValidationSamInfo GetValidationSamInfo(
             SecurityIdentifier userSid,
@@ -82,6 +86,7 @@ namespace FindGT
             IntPtr profileBuffer = IntPtr.Zero;
             IntPtr tokenHandle = IntPtr.Zero;
             IntPtr lsaHandle = IntPtr.Zero;
+            IntPtr kerberosPackageBuffer = IntPtr.Zero;
 
             try
             {
@@ -118,30 +123,8 @@ namespace FindGT
                     DomainName = domainName
                 };
 
-                int fixedLogonSize = Marshal.SizeOf(typeof(Interop.MSV1_0_S4U_LOGON));
-                int userPrincipalNameLength = userPrincipalNameBytes != null ? userPrincipalNameBytes.Length : 0;
-                int domainNameLength = domainNameBytes != null ? domainNameBytes.Length : 0;
-                int totalLogonSize = fixedLogonSize + userPrincipalNameLength + domainNameLength;
-
-                logonBuffer = Marshal.AllocHGlobal(totalLogonSize);
-
-                IntPtr currentBuffer = IntPtr.Add(logonBuffer, fixedLogonSize);
-
-                if (userPrincipalNameLength > 0)
-                {
-                    s4uLogon.UserPrincipalName.Buffer = currentBuffer;
-                    Marshal.Copy(userPrincipalNameBytes, 0, currentBuffer, userPrincipalNameLength);
-                    currentBuffer = IntPtr.Add(currentBuffer, userPrincipalNameLength);
-                }
-
-                if (domainNameLength > 0)
-                {
-                    s4uLogon.DomainName.Buffer = currentBuffer;
-                    Marshal.Copy(domainNameBytes, 0, currentBuffer, domainNameLength);
-                    currentBuffer = IntPtr.Add(currentBuffer, domainNameLength);
-                }
-
-                Marshal.StructureToPtr(s4uLogon, logonBuffer, false);
+                uint totalLogonSize;
+                logonBuffer = BuildMsvS4ULogonBuffer(ref s4uLogon, userPrincipalNameBytes, domainNameBytes, out totalLogonSize);
 
                 Interop.TOKEN_SOURCE sourceContext = new Interop.TOKEN_SOURCE
                 {
@@ -167,7 +150,7 @@ namespace FindGT
                     Interop.SECURITY_LOGON_TYPE.Network,
                     authenticationPackage,
                     logonBuffer,
-                    (uint)totalLogonSize,
+                    totalLogonSize,
                     IntPtr.Zero,
                     ref sourceContext,
                     out profileBuffer,
@@ -176,6 +159,72 @@ namespace FindGT
                     out tokenHandle,
                     out quotas,
                     out subStatus);
+
+                if (ntstatus == STATUS_NOT_SUPPORTED || ntstatus == STATUS_NO_S4U_PROT_SUPPORT)
+                {
+                    if (logonBuffer != IntPtr.Zero)
+                    {
+                        Marshal.FreeHGlobal(logonBuffer);
+                        logonBuffer = IntPtr.Zero;
+                    }
+
+                    Interop.LSA_STRING kerberosPackageName = CreateLsaString(KerberosAuthenticationPackage, out kerberosPackageBuffer);
+
+                    ntstatus = Interop.LsaLookupAuthenticationPackage(lsaHandle, ref kerberosPackageName, out authenticationPackage);
+                    if (ntstatus != 0)
+                    {
+                        throw new Win32Exception((int)Interop.LsaNtStatusToWinError(ntstatus));
+                    }
+
+                    string kerberosRealmCandidate = !string.IsNullOrEmpty(dnsDomainName) ? dnsDomainName : explicitDomain;
+                    string kerberosUpnValue = upnValue;
+                    if (!string.IsNullOrEmpty(kerberosRealmCandidate) && (string.IsNullOrEmpty(kerberosUpnValue) || !kerberosUpnValue.Contains("@")))
+                    {
+                        kerberosUpnValue = string.Format("{0}@{1}", samAccountName, kerberosRealmCandidate);
+                    }
+
+                    string kerberosRealmValue = string.IsNullOrEmpty(kerberosRealmCandidate)
+                        ? null
+                        : kerberosRealmCandidate.ToUpperInvariant();
+
+                    byte[] kerberosUpnBytes;
+                    Interop.UNICODE_STRING kerberosUpn = CreateUnicodeString(kerberosUpnValue, out kerberosUpnBytes);
+                    byte[] kerberosRealmBytes;
+                    Interop.UNICODE_STRING kerberosRealm = CreateUnicodeString(kerberosRealmValue, out kerberosRealmBytes);
+
+                    Interop.KERB_S4U_LOGON kerbLogon = new Interop.KERB_S4U_LOGON
+                    {
+                        MessageType = Interop.KERB_LOGON_SUBMIT_TYPE.KerbS4ULogon,
+                        Flags = 0,
+                        ClientUpn = kerberosUpn,
+                        ClientRealm = kerberosRealm
+                    };
+
+                    logonBuffer = BuildKerbS4ULogonBuffer(ref kerbLogon, kerberosUpnBytes, kerberosRealmBytes, out totalLogonSize);
+
+                    profileBuffer = IntPtr.Zero;
+                    tokenHandle = IntPtr.Zero;
+                    logonId = default;
+                    quotas = default;
+                    profileLength = 0;
+                    subStatus = 0;
+
+                    ntstatus = Interop.LsaLogonUser(
+                        lsaHandle,
+                        ref originName,
+                        Interop.SECURITY_LOGON_TYPE.Network,
+                        authenticationPackage,
+                        logonBuffer,
+                        totalLogonSize,
+                        IntPtr.Zero,
+                        ref sourceContext,
+                        out profileBuffer,
+                        out profileLength,
+                        out logonId,
+                        out tokenHandle,
+                        out quotas,
+                        out subStatus);
+                }
 
                 if (ntstatus != 0)
                 {
@@ -205,6 +254,11 @@ namespace FindGT
                 if (packageNameBuffer != IntPtr.Zero)
                 {
                     Marshal.FreeHGlobal(packageNameBuffer);
+                }
+
+                if (kerberosPackageBuffer != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(kerberosPackageBuffer);
                 }
 
                 if (originNameBuffer != IntPtr.Zero)
@@ -280,6 +334,87 @@ namespace FindGT
             }
 
             return info;
+        }
+
+        private static IntPtr BuildMsvS4ULogonBuffer(
+            ref Interop.MSV1_0_S4U_LOGON logon,
+            byte[] userPrincipalNameBytes,
+            byte[] domainNameBytes,
+            out uint totalSize)
+        {
+            int structSize = Marshal.SizeOf(typeof(Interop.MSV1_0_S4U_LOGON));
+            int userPrincipalNameLength = userPrincipalNameBytes != null ? userPrincipalNameBytes.Length : 0;
+            int domainNameLength = domainNameBytes != null ? domainNameBytes.Length : 0;
+            int totalLogonSize = checked(structSize + userPrincipalNameLength + domainNameLength);
+
+            IntPtr buffer = Marshal.AllocHGlobal(totalLogonSize);
+            IntPtr currentBuffer = IntPtr.Add(buffer, structSize);
+
+            if (userPrincipalNameLength > 0)
+            {
+                logon.UserPrincipalName.Buffer = currentBuffer;
+                Marshal.Copy(userPrincipalNameBytes, 0, currentBuffer, userPrincipalNameLength);
+                currentBuffer = IntPtr.Add(currentBuffer, userPrincipalNameLength);
+            }
+            else
+            {
+                logon.UserPrincipalName.Buffer = IntPtr.Zero;
+            }
+
+            if (domainNameLength > 0)
+            {
+                logon.DomainName.Buffer = currentBuffer;
+                Marshal.Copy(domainNameBytes, 0, currentBuffer, domainNameLength);
+                currentBuffer = IntPtr.Add(currentBuffer, domainNameLength);
+            }
+            else
+            {
+                logon.DomainName.Buffer = IntPtr.Zero;
+            }
+
+            Marshal.StructureToPtr(logon, buffer, false);
+            totalSize = (uint)totalLogonSize;
+            return buffer;
+        }
+
+        private static IntPtr BuildKerbS4ULogonBuffer(
+            ref Interop.KERB_S4U_LOGON logon,
+            byte[] clientUpnBytes,
+            byte[] clientRealmBytes,
+            out uint totalSize)
+        {
+            int structSize = Marshal.SizeOf(typeof(Interop.KERB_S4U_LOGON));
+            int clientUpnLength = clientUpnBytes != null ? clientUpnBytes.Length : 0;
+            int clientRealmLength = clientRealmBytes != null ? clientRealmBytes.Length : 0;
+            int totalLogonSize = checked(structSize + clientUpnLength + clientRealmLength);
+
+            IntPtr buffer = Marshal.AllocHGlobal(totalLogonSize);
+            IntPtr currentBuffer = IntPtr.Add(buffer, structSize);
+
+            if (clientUpnLength > 0)
+            {
+                logon.ClientUpn.Buffer = currentBuffer;
+                Marshal.Copy(clientUpnBytes, 0, currentBuffer, clientUpnLength);
+                currentBuffer = IntPtr.Add(currentBuffer, clientUpnLength);
+            }
+            else
+            {
+                logon.ClientUpn.Buffer = IntPtr.Zero;
+            }
+
+            if (clientRealmLength > 0)
+            {
+                logon.ClientRealm.Buffer = currentBuffer;
+                Marshal.Copy(clientRealmBytes, 0, currentBuffer, clientRealmLength);
+            }
+            else
+            {
+                logon.ClientRealm.Buffer = IntPtr.Zero;
+            }
+
+            Marshal.StructureToPtr(logon, buffer, false);
+            totalSize = (uint)totalLogonSize;
+            return buffer;
         }
 
         private static Interop.LSA_STRING CreateLsaString(string value, out IntPtr buffer)
