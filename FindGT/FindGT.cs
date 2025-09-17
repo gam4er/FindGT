@@ -7,8 +7,9 @@ using System.DirectoryServices.ActiveDirectory;
 using System.Security.Cryptography;
 using System.DirectoryServices;
 using System.Collections;
-using System.Runtime.InteropServices;
 using System.Text;
+using Vanara.PInvoke;
+using static Vanara.PInvoke.AdvApi32;
 
 namespace FindGT
 {
@@ -93,45 +94,26 @@ namespace FindGT
 
             Dictionary<string, Find.FoundSession> logonSessions = Find.LogonSessions(true);
 
-            string accountName = System.Environment.MachineName;
-            string MachineSIDString = "";
-            byte[] Sid = null;
-            uint cbSid = 0;
-            StringBuilder referencedDomainName = new StringBuilder();
-            uint cchReferencedDomainName = (uint)referencedDomainName.Capacity;
-            Interop.SID_NAME_USE sidUse;
+            string accountName = Environment.MachineName;
+            string MachineSIDString = string.Empty;
 
-            int err = Interop.NO_ERROR;
-            if (!Interop.LookupAccountName(null, accountName, Sid, ref cbSid, referencedDomainName, ref cchReferencedDomainName, out sidUse))
+            SafePSID machineSid = SafePSID.Null;
+            try
             {
-                err = Marshal.GetLastWin32Error();
-                if (err == Interop.ERROR_INSUFFICIENT_BUFFER || err == Interop.ERROR_INVALID_FLAGS)
+                if (LookupAccountName(null, accountName, out machineSid, out _, out _))
                 {
-                    Sid = new byte[cbSid];
-                    referencedDomainName.EnsureCapacity((int)cchReferencedDomainName);
-                    err = Interop.NO_ERROR;
-                    if (!Interop.LookupAccountName(null, accountName, Sid, ref cbSid, referencedDomainName, ref cchReferencedDomainName, out sidUse))
-                        err = Marshal.GetLastWin32Error();
-                }
-            }
-
-            if (err == 0)
-            {
-                IntPtr ptrSid;
-                if (!Interop.ConvertSidToStringSid(Sid, out ptrSid))
-                {
-                    err = Marshal.GetLastWin32Error();
-                    //Console.WriteLine(@"Could not convert sid to string. Error : {0}", err);
+                    MachineSIDString = machineSid?.ToString() ?? string.Empty;
                 }
                 else
                 {
-                    MachineSIDString = Marshal.PtrToStringAuto(ptrSid);
-                    Interop.LocalFree(ptrSid);
-                    //Console.WriteLine(@"Found sid {0} : {1}", sidUse, sidString);
+                    var err = Win32Error.GetLastError();
+                    Console.WriteLine(@"Error : {0}", err);
                 }
             }
-            else
-                Console.WriteLine(@"Error : {0}", err);
+            finally
+            {
+                machineSid?.Dispose();
+            }
 
             string domainDnsName = null;
             string domainControllerName = null;
@@ -187,6 +169,9 @@ namespace FindGT
                     }
                 }
 
+                Console.WriteLine("Token on User {0} in Session {1} contains {2} groups", sid, string.Format("0x{0:X}", luid), groupSids.Count);
+
+#if DEBUG
                 HashSet<string> netlogonGroupSids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 try
                 {
@@ -241,7 +226,6 @@ namespace FindGT
                     Console.WriteLine($"  [!] Netlogon lookup failed for {session.Value.UserName}: {ex.Message}");
                 }
 
-                Console.WriteLine("Token on User {0} in Session {1} contains {2} groups", sid, string.Format("0x{0:X}", luid), groupSids.Count);
                 Console.WriteLine("Netlogon reports {0} groups for {1}", netlogonGroupSids.Count, sid);
 
                 foreach (var group in groupSids)
@@ -259,6 +243,7 @@ namespace FindGT
                         Console.WriteLine("Token on User {0} in Session {1} doesn't contain {2} but Netlogon membership includes it", sid, string.Format("0x{0:X}", luid), groupSid);
                     }
                 }
+#endif
             }
 
             principalContext?.Dispose();
