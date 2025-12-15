@@ -140,10 +140,8 @@ namespace Microsoft.Samples.DynamicAccessControl
 
         static void Main(string [] args)
         {
-            Console.WriteLine("Введите SID пользователя, которого надо лукапить");
-            string userSidString = Console.ReadLine(); // Example SID
-            Console.WriteLine("Введите домен (формата DOMAIN.LOCAL) пользователя, которого надо лукапить");
-            SecurityIdentifier sid = new SecurityIdentifier(Console.ReadLine());
+            string userSidString = "S-1-5-21-1430328663-2098613005-1233803906-99829"; // Example SID
+            SecurityIdentifier sid = new SecurityIdentifier(userSidString);
             byte [] sidBytes = new byte [sid.BinaryLength];
             sid.GetBinaryForm(sidBytes, 0);
 
