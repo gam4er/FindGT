@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AuthzGetInformationFromCont
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WinSample", "WinSample\WinSample.csproj", "{099FF45C-7E34-412E-8F39-DE4DBA78831A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LsaSecretExtractor", "LsaSecretExtractor\LsaSecretExtractor.csproj", "{7A3E5C21-9B4D-4E8A-AF12-3C6D9E0B1F45}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,14 @@ Global
 		{099FF45C-7E34-412E-8F39-DE4DBA78831A}.Release|Any CPU.Build.0 = Release|Any CPU
 		{099FF45C-7E34-412E-8F39-DE4DBA78831A}.Release|x64.ActiveCfg = Release|Any CPU
 		{099FF45C-7E34-412E-8F39-DE4DBA78831A}.Release|x64.Build.0 = Release|Any CPU
+		{7A3E5C21-9B4D-4E8A-AF12-3C6D9E0B1F45}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7A3E5C21-9B4D-4E8A-AF12-3C6D9E0B1F45}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7A3E5C21-9B4D-4E8A-AF12-3C6D9E0B1F45}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7A3E5C21-9B4D-4E8A-AF12-3C6D9E0B1F45}.Debug|x64.Build.0 = Debug|Any CPU
+		{7A3E5C21-9B4D-4E8A-AF12-3C6D9E0B1F45}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7A3E5C21-9B4D-4E8A-AF12-3C6D9E0B1F45}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7A3E5C21-9B4D-4E8A-AF12-3C6D9E0B1F45}.Release|x64.ActiveCfg = Release|Any CPU
+		{7A3E5C21-9B4D-4E8A-AF12-3C6D9E0B1F45}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

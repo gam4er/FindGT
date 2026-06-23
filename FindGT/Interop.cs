@@ -47,8 +47,7 @@ namespace FindGT
             MsV1_0Lm20Logon,
             MsV1_0NetworkLogon,
             MsV1_0SubAuthLogon,
-            MsV1_0WorkstationUnlockLogon = 7,
-            MsV1_0S4ULogon = 12
+            MsV1_0WorkstationUnlockLogon = 7
         }
 
         public enum TOKEN_INFORMATION_CLASS
@@ -231,15 +230,6 @@ namespace FindGT
             public UIntPtr MaximumWorkingSetSize;
             public UIntPtr PagefileLimit;
             public long TimeLimit;
-        }
-
-        [StructLayout(LayoutKind.Sequential)]
-        public struct MSV1_0_S4U_LOGON
-        {
-            public MSV1_0_LOGON_SUBMIT_TYPE MessageType;
-            public uint Flags;
-            public UNICODE_STRING UserPrincipalName;
-            public UNICODE_STRING DomainName;
         }
 
         #endregion
