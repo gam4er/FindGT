@@ -3,6 +3,10 @@
 ##
 ## Get latest from https://github.com/github/gitignore/blob/master/VisualStudio.gitignore
 
+# Local secrets (machine account NT hash, extracted credentials) — never commit
+/secrets/
+*.nthash
+
 # User-specific files
 *.rsuser
 *.suo
@@ -361,3 +365,4 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/Docs
