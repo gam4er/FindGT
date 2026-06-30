@@ -1,6 +1,6 @@
 # FindGT — детектор аномалий членства для Golden Ticket
 
-> English version: [README.md](README.md). **Обе версии README обязаны быть синхронны** — см. [AGENT.md](AGENT.md).
+> English version: [README.md](README.md). Файлы README на всех языках должны быть эквивалентны по смыслу — см. [AGENTS.md](AGENTS.md).
 
 FindGT проверяет **Kerberos‑сессии входа** Windows и сравнивает членство в группах,
 **заявленное токеном каждой сессии**, с **авторитетным членством**, которое для этого
@@ -11,6 +11,97 @@ SID групп (`Domain Admins`, `Enterprise Admins`, `Schema Admins` и т.п.)
 
 > Исследовательский / PoC‑инструмент. Значительная часть кода работы с токенами/сессиями
 > заимствована из [GhostPack/Koh](https://github.com/GhostPack/Koh).
+
+## Почему хосты доверяют Golden Ticket
+
+В Kerberos доверие строится вокруг валидной криптографии и сервисных билетов, выданных KDC.
+
+1. Атакующий подделывает TGT (Golden Ticket) и помещает фейковое членство в PAC.
+2. Атакующий отправляет этот TGT на KDC в запросе TGS к целевому сервису.
+3. KDC проверяет криптографическую валидность билета (доверительный путь KRBTGT).
+4. Если криптография валидна, KDC выпускает сервисный билет и переносит данные авторизации.
+5. Атакующий предъявляет сервисный билет хосту-жертве.
+6. На хосте LSASS проверяет криптографию сервисного билета.
+7. LSASS материализует данные идентичности/групп в токене сессии.
+8. Поддельное членство приходит на хост как «доверенный» артефакт авторизации.
+9. Мы видим это в token groups созданной сессии.
+
+```mermaid
+flowchart LR
+  A[Атакующий подделывает TGT + фейковые группы PAC] --> B[TGS-REQ на KDC]
+  B --> C[KDC проверяет криптографию]
+  C --> D[KDC выдаёт сервисный билет]
+  D --> E[TGS предъявляется хосту-жертве]
+  E --> F[LSASS проверяет криптографию билета]
+  F --> G[Создаётся токен сессии]
+  G --> H[Token Groups содержат фейковое членство]
+```
+
+Статическая SVG-версия: [Docs/diagrams/golden-ticket-trust-flow.svg](Docs/diagrams/golden-ticket-trust-flow.svg)
+
+## Граница детектирования: наблюдаемое против зашифрованного
+
+FindGT анализирует LSASS-сессии и token groups, потому что это практичный, наблюдаемый и более
+безопасный слой детектирования на endpoint.
+
+- Наблюдаемое: сессии входа, token groups, SID-расхождения.
+- Непрактично как массовый endpoint-подход: произвольная дешифрация билетов.
+- Причина безопасности: такой подход расширяет экспозицию ключевого материала и поверхность атаки.
+
+```mermaid
+flowchart TB
+  subgraph Observable[Наблюдаемо на endpoint]
+    S[LSASS-сессии]
+    T[Token Groups]
+    D[Дифф токена против эталона]
+  end
+
+  subgraph Encrypted[Зашифровано или рискованно раскрывать]
+    K[Зашифрованные части TGT/TGS]
+    R[Долгоживущие ключи KRBTGT и сервисов]
+  end
+
+  S --> D
+  T --> D
+  K -. избегаем массовой endpoint-дешифрации .-> D
+  R -. ключевой материал держим минимально распространенным .-> D
+```
+
+Статическая SVG-версия: [Docs/diagrams/findgt-observable-boundary.svg](Docs/diagrams/findgt-observable-boundary.svg)
+
+## Где FindGT сильнее / слабее
+
+FindGT наиболее информативен в production-like AD-средах, где за время эксплуатации накопилось
+реальное нетривиальное вложенное членство.
+
+Среды с низким контрастом (сигнал слабее):
+
+- Только дефолтный набор групп.
+- Недавно развернутый домен с минимальным жизненным циклом идентичностей.
+- Нет леса и нет доверенных внешних доменов.
+- Небольшая глубина вложенности групп.
+
+Если расхождения не найдены, это корректнее трактовать как «не обнаружено в текущем baseline»,
+а не как криптографическое доказательство отсутствия атаки.
+
+## Примечание по утверждениям о Mimikatz / Rubeus
+
+Некорректно утверждать, что современные инструменты строго ограничены только «однодоменным"
+членством. Текущие реализации умеют заполнять и `GroupIds`, и `ExtraSids` в
+PAC/KERB_VALIDATION_INFO. Будут ли междоменный SID реально принят, определяют trust, SID
+filtering и PAC validation политики конкретной среды.
+
+Mimikatz (официальные upstream permalink):
+
+- [kuhl_m_kerberos_pac.c @ 306bc6b #L146-L173](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L146-L173) — заполнение `KERB_VALIDATION_INFO`, включая `GroupIds` и `ExtraSids`.
+- [kuhl_m_kerberos_pac.c @ 306bc6b #L179-L245](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L179-L245) — парсинг RID-групп/дефолтных групп и разбор SID в `KERB_SID_AND_ATTRIBUTES`.
+- [kuhl_m_kerberos.c @ 306bc6b #L633-L640](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos.c#L633-L640) — путь генерации и подписи PAC из validation info.
+
+Rubeus (официальные upstream permalink):
+
+- [ForgeTicket.cs @ 74215f6 #L89-L124](https://github.com/GhostPack/Rubeus/blob/74215f68ea70bd6a66c008da91bf5fe21d20b154/Rubeus/lib/ForgeTicket.cs#L89-L124) — инициализация `_KERB_VALIDATION_INFO`, базовые `GroupIds`/`ExtraSids`.
+- [ForgeTicket.cs @ 74215f6 #L576-L592](https://github.com/GhostPack/Rubeus/blob/74215f68ea70bd6a66c008da91bf5fe21d20b154/Rubeus/lib/ForgeTicket.cs#L576-L592) — циклы заполнения `GroupIds` и `ExtraSids`.
+- [Kerberos_PAC.cs @ 74215f6 #L681-L784](https://github.com/GhostPack/Rubeus/blob/74215f68ea70bd6a66c008da91bf5fe21d20b154/Rubeus/lib/krb_structures/pac/Ndr/Kerberos_PAC.cs#L681-L784) — структура `_KERB_VALIDATION_INFO` с полями `GroupIds` и `ExtraSids`.
 
 ## Как это работает
 
@@ -95,6 +186,8 @@ LsaSecretExtractor --out <path> [--encoding hex|base64|raw] [--secret <name>] [-
 
 - [ ] **Опция B** — полностью автономный raw‑Kerberos S4U2Self + U2U (независимо от локального
       LSASS). Подробный план: [Docs/OptionB-RawKerberos-S4U2Self.md](Docs/OptionB-RawKerberos-S4U2Self.md).
+- [ ] Standalone MSI-пакет с сервисным режимом для непрерывной проверки новых сессий.
+- [ ] Optional / policy-driven response including logoff для подозрительных сессий.
 - [ ] Проверить «подозрительный» (красный) путь на настоящем поддельном билете в лаборатории.
 - [ ] Харденинг секрета — хранение в DPAPI/CredMan, строгие ACL, маскирование полей.
 - [ ] Шире охват — cross‑domain ExtraSids, несколько DC, больше типов сессий.

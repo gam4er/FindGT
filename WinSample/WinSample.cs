@@ -159,7 +159,7 @@ namespace Microsoft.Samples.DynamicAccessControl
                     //objectUuid = "c2c8ffe7-5e1a-4f53-9f4a-c9e335dff0ed",
                     objectUuid = "5fc860e0-6f6e-4fc2-83cd-46324f25e90b",
                     protocol = "ncacn_ip_tcp",
-                    server = "KLDC5.avp.ru"
+                    server = "DC01.contoso.com"
                 };
 
                 if (!NativeMethods.AuthzInitializeRemoteResourceManager(ref rpcInitInfo, out authzRM))

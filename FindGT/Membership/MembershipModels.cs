@@ -8,10 +8,10 @@ namespace FindGT.Membership
     public class MembershipQuery
     {
         public SecurityIdentifier UserSid;
-        public string SamAccountName;   // e.g. "rodchenko"
-        public string Upn;              // e.g. "rodchenko@avp.ru"
-        public string Nt4Name;          // e.g. "KL\\rodchenko"
-        public string DnsDomain;        // e.g. "AVP.RU"
+        public string SamAccountName;   // e.g. "testuser"
+        public string Upn;              // e.g. "testuser@CONTOSO.COM"
+        public string Nt4Name;          // e.g. "CONTOSO\\testuser"
+        public string DnsDomain;        // e.g. "CONTOSO.COM"
     }
 
     /// <summary>Authoritative (expected) membership computed by a provider.</summary>
