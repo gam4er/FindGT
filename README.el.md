@@ -51,10 +51,10 @@ flowchart TD
   classDef endNode fill:#ff9f1c,stroke:#b86b00,color:#1f1300,stroke-width:2px;
   class A startNode;
   class I endNode;
-  linkStyle 8 stroke:#ff3b30,stroke-width:3px,stroke-dasharray:8 6,color:#ff3b30;
+  linkStyle 8 stroke:#ff3b30,stroke-width:3px;
 ```
 
-Static SVG: [Docs/diagrams/golden-ticket-trust-flow.svg](Docs/diagrams/golden-ticket-trust-flow.svg)
+Static SVG: [SlidesAndDocs/diagrams/golden-ticket-trust-flow.svg](SlidesAndDocs/diagrams/golden-ticket-trust-flow.svg)
 
 ## Όριο ανίχνευσης: παρατηρήσιμο vs κρυπτογραφημένο
 
@@ -84,7 +84,7 @@ flowchart TB
   R -. περιορίζουμε την έκθεση key material .-> D
 ```
 
-Static SVG: [Docs/diagrams/findgt-observable-boundary.svg](Docs/diagrams/findgt-observable-boundary.svg)
+Static SVG: [SlidesAndDocs/diagrams/findgt-observable-boundary.svg](SlidesAndDocs/diagrams/findgt-observable-boundary.svg)
 
 ## Πού το FindGT είναι ισχυρό / αδύναμο
 
@@ -201,7 +201,7 @@ One Spectre.Console table per session: **SID | Name | Comment**, colour-coded
 ## Roadmap / TODO
 
 - [ ] **Option B** — fully self-contained raw-Kerberos S4U2Self + U2U (independent of local
-      LSASS). Detailed plan: [Docs/OptionB-RawKerberos-S4U2Self.md](Docs/OptionB-RawKerberos-S4U2Self.md).
+      LSASS). Detailed plan: [SlidesAndDocs/OptionB-RawKerberos-S4U2Self.md](SlidesAndDocs/OptionB-RawKerberos-S4U2Self.md).
 - [ ] Standalone MSI package with service mode for continuous checks on new sessions.
 - [ ] Optional / policy-driven response including logoff for suspicious sessions.
 - [ ] Validate the "suspicious" (red) path against a real forged ticket in a lab.

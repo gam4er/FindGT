@@ -51,10 +51,10 @@ flowchart TD
   classDef endNode fill:#ff9f1c,stroke:#b86b00,color:#1f1300,stroke-width:2px;
   class A startNode;
   class I endNode;
-  linkStyle 8 stroke:#ff3b30,stroke-width:3px,stroke-dasharray:8 6,color:#ff3b30;
+  linkStyle 8 stroke:#ff3b30,stroke-width:3px;
 ```
 
-Статическая SVG-версия: [Docs/diagrams/golden-ticket-trust-flow.svg](Docs/diagrams/golden-ticket-trust-flow.svg)
+Статическая SVG-версия: [SlidesAndDocs/diagrams/golden-ticket-trust-flow.svg](SlidesAndDocs/diagrams/golden-ticket-trust-flow.svg)
 
 ## Граница детектирования: наблюдаемое против зашифрованного
 
@@ -84,7 +84,7 @@ flowchart TB
   R -. ключевой материал держим минимально распространенным .-> D
 ```
 
-Статическая SVG-версия: [Docs/diagrams/findgt-observable-boundary.svg](Docs/diagrams/findgt-observable-boundary.svg)
+Статическая SVG-версия: [SlidesAndDocs/diagrams/findgt-observable-boundary.svg](SlidesAndDocs/diagrams/findgt-observable-boundary.svg)
 
 ## Где FindGT сильнее / слабее
 
@@ -202,7 +202,7 @@ LsaSecretExtractor --out <path> [--encoding hex|base64|raw] [--secret <name>] [-
 ## План / TODO
 
 - [ ] **Опция B** — полностью автономный raw‑Kerberos S4U2Self + U2U (независимо от локального
-      LSASS). Подробный план: [Docs/OptionB-RawKerberos-S4U2Self.md](Docs/OptionB-RawKerberos-S4U2Self.md).
+      LSASS). Подробный план: [SlidesAndDocs/OptionB-RawKerberos-S4U2Self.md](SlidesAndDocs/OptionB-RawKerberos-S4U2Self.md).
 - [ ] Standalone MSI-пакет с сервисным режимом для непрерывной проверки новых сессий.
 - [ ] Optional / policy-driven response including logoff для подозрительных сессий.
 - [ ] Проверить «подозрительный» (красный) путь на настоящем поддельном билете в лаборатории.
