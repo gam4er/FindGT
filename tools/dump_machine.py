@@ -24,7 +24,7 @@ try:
 
     for line in text.splitlines():
         low = line.lower()
-        if "machine" in low or "$mac" in low or "_sc_" in low or "rodchenko" in low:
+        if "machine" in low or "$mac" in low or "_sc_" in low:
             print("MATCH:", line)
 except Exception:
     traceback.print_exc()

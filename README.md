@@ -1,6 +1,6 @@
 # FindGT — Golden Ticket membership anomaly detector
 
-> Russian version: [README.ru.md](README.ru.md). **Both READMEs must be kept in sync** — see [AGENT.md](AGENT.md).
+> Russian version: [README.ru.md](README.ru.md). Additional language files must carry the same meaning — see [AGENTS.md](AGENTS.md).
 
 FindGT inspects Windows **Kerberos logon sessions** and compares the group membership
 **claimed by each session token** against the **authoritative membership** the domain
@@ -10,6 +10,96 @@ in the session token but **not** in the authoritative source — which is what F
 
 > Research / PoC tool. A large amount of token/session code is derived from
 > [GhostPack/Koh](https://github.com/GhostPack/Koh).
+
+## Why hosts trust a Golden Ticket
+
+In Kerberos terms, trust follows valid cryptography and KDC-issued service tickets.
+
+1. The attacker forges a TGT (Golden Ticket) and inserts fake group membership into PAC.
+2. The attacker sends that TGT to the KDC in a TGS request for a victim service.
+3. The KDC validates ticket cryptography (KRBTGT trust path).
+4. If cryptography is valid, KDC issues a service ticket and propagates authorization data.
+5. The attacker presents the service ticket to the victim host.
+6. On the host, LSASS validates service-ticket cryptography.
+7. LSASS materializes identity/group data into the logon session token.
+8. The forged membership reaches the host as a trusted authorization artifact.
+9. We observe it in the created session's token groups.
+
+```mermaid
+flowchart LR
+  A[Attacker forges TGT + fake PAC groups] --> B[TGS-REQ to KDC]
+  B --> C[KDC validates cryptography]
+  C --> D[KDC issues service ticket]
+  D --> E[TGS presented to victim host]
+  E --> F[LSASS validates ticket cryptography]
+  F --> G[Session token created]
+  G --> H[Token Groups contain forged membership]
+```
+
+Static SVG: [Docs/diagrams/golden-ticket-trust-flow.svg](Docs/diagrams/golden-ticket-trust-flow.svg)
+
+## Detection boundary: observable vs encrypted
+
+FindGT inspects LSASS sessions and token groups because this is the practical, observable,
+and safer detection surface on endpoints.
+
+- Observable: logon sessions, token groups, SID diffs.
+- Not practically observable at scale on endpoints: arbitrary ticket decryption.
+- Security reason: broad decryption workflows would increase key-material exposure and attack surface.
+
+```mermaid
+flowchart TB
+  subgraph Observable[Observable on endpoint]
+    S[LSASS sessions]
+    T[Token groups]
+    D[Token vs authoritative diff]
+  end
+
+  subgraph Encrypted[Encrypted or high-risk to expose]
+    K[TGT/TGS encrypted parts]
+    R[KRBTGT and service long-term keys]
+  end
+
+  S --> D
+  T --> D
+  K -. avoid broad endpoint decryption .-> D
+  R -. keep key material constrained .-> D
+```
+
+Static SVG: [Docs/diagrams/findgt-observable-boundary.svg](Docs/diagrams/findgt-observable-boundary.svg)
+
+## Where FindGT is strong / weak
+
+FindGT is strongest in production-like AD environments where real operational systems create
+non-trivial nested membership over time.
+
+Low-contrast environments (weaker signal):
+
+- Default group set only.
+- Recently deployed domain with minimal identity lifecycle.
+- No forest and no trusted external domains.
+- Low group nesting depth.
+
+If no mismatch is found, interpret this as "not observed in the current baseline", not as a
+cryptographic proof that no attack exists.
+
+## Note on tooling claims (Mimikatz / Rubeus)
+
+It is inaccurate to say that modern tooling is strictly limited to one-domain membership only.
+Current implementations can populate both `GroupIds` and `ExtraSids` in PAC/KERB_VALIDATION_INFO.
+Whether cross-domain SIDs are honored depends on trust, SID filtering, and PAC validation policy.
+
+Mimikatz (official upstream permalinks):
+
+- [kuhl_m_kerberos_pac.c @ 306bc6b #L146-L173](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L146-L173) — fills `KERB_VALIDATION_INFO`, including `GroupIds` and `ExtraSids`.
+- [kuhl_m_kerberos_pac.c @ 306bc6b #L179-L245](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L179-L245) — group RID parsing/default groups and SID parsing into `KERB_SID_AND_ATTRIBUTES`.
+- [kuhl_m_kerberos.c @ 306bc6b #L633-L640](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos.c#L633-L640) — PAC generation/sign path from validation info.
+
+Rubeus (official upstream permalinks):
+
+- [ForgeTicket.cs @ 74215f6 #L89-L124](https://github.com/GhostPack/Rubeus/blob/74215f68ea70bd6a66c008da91bf5fe21d20b154/Rubeus/lib/ForgeTicket.cs#L89-L124) — initializes `_KERB_VALIDATION_INFO`, defaults for `GroupIds`/`ExtraSids`.
+- [ForgeTicket.cs @ 74215f6 #L576-L592](https://github.com/GhostPack/Rubeus/blob/74215f68ea70bd6a66c008da91bf5fe21d20b154/Rubeus/lib/ForgeTicket.cs#L576-L592) — loops to populate `GroupIds` and `ExtraSids`.
+- [Kerberos_PAC.cs @ 74215f6 #L681-L784](https://github.com/GhostPack/Rubeus/blob/74215f68ea70bd6a66c008da91bf5fe21d20b154/Rubeus/lib/krb_structures/pac/Ndr/Kerberos_PAC.cs#L681-L784) — `_KERB_VALIDATION_INFO` structure with `GroupIds` and `ExtraSids` fields.
 
 ## How it works
 
@@ -94,6 +184,8 @@ One Spectre.Console table per session: **SID | Name | Comment**, colour-coded
 
 - [ ] **Option B** — fully self-contained raw-Kerberos S4U2Self + U2U (independent of local
       LSASS). Detailed plan: [Docs/OptionB-RawKerberos-S4U2Self.md](Docs/OptionB-RawKerberos-S4U2Self.md).
+- [ ] Standalone MSI package with service mode for continuous checks on new sessions.
+- [ ] Optional / policy-driven response including logoff for suspicious sessions.
 - [ ] Validate the "suspicious" (red) path against a real forged ticket in a lab.
 - [ ] Secret hardening — DPAPI/CredMan storage, restrictive ACLs, field masking.
 - [ ] Broader coverage — cross-domain ExtraSids, multiple DCs, more session types.
