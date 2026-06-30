@@ -1,6 +1,14 @@
 # FindGT — Golden Ticket membership anomaly detector
 
-> Russian version: [README.ru.md](README.ru.md). Additional language files must carry the same meaning — see [AGENTS.md](AGENTS.md).
+> README language versions:
+>
+> | Language | File                         |
+> | -------- | ---------------------------- |
+> | English  | [README.md](README.md)       |
+> | Russian  | [README.ru.md](README.ru.md) |
+> | Greek    | [README.el.md](README.el.md) |
+>
+> All language files must carry the same meaning — see [AGENTS.md](AGENTS.md).
 
 FindGT inspects Windows **Kerberos logon sessions** and compares the group membership
 **claimed by each session token** against the **authoritative membership** the domain
@@ -18,7 +26,7 @@ In Kerberos terms, trust follows valid cryptography and KDC-issued service ticke
 1. The attacker forges a TGT (Golden Ticket) and inserts fake group membership into PAC.
 2. The attacker sends that TGT to the KDC in a TGS request for a victim service.
 3. The KDC validates ticket cryptography (KRBTGT trust path).
-4. If cryptography is valid, KDC issues a service ticket and propagates authorization data.
+4. If cryptography is valid, KDC issues a service ticket and propagates PAC authorization data from the incoming TGT without reconstructing group membership from AD at this TGS stage.
 5. The attacker presents the service ticket to the victim host.
 6. On the host, LSASS validates service-ticket cryptography.
 7. LSASS materializes identity/group data into the logon session token.
@@ -26,14 +34,23 @@ In Kerberos terms, trust follows valid cryptography and KDC-issued service ticke
 9. We observe it in the created session's token groups.
 
 ```mermaid
-flowchart LR
-  A[Attacker forges TGT + fake PAC groups] --> B[TGS-REQ to KDC]
-  B --> C[KDC validates cryptography]
-  C --> D[KDC issues service ticket]
-  D --> E[TGS presented to victim host]
-  E --> F[LSASS validates ticket cryptography]
-  F --> G[Session token created]
-  G --> H[Token Groups contain forged membership]
+flowchart TD
+  A[1. Attacker forges TGT + inserts fake PAC groups] --> B[2. TGS-REQ to KDC]
+  B --> C[3. KDC validates TGT cryptography]
+  C --> D[4. KDC issues service ticket and propagates PAC authorization data from TGT without AD membership reconstruction]
+  D --> E[5. Service ticket returned to attacker]
+  E --> F[6. TGS presented to victim host]
+  F --> G[7. LSASS validates service ticket cryptography]
+  G --> H[8. Session token is created]
+  H --> I[9. Token Groups contain forged membership]
+
+  A -. Causal path: forged PAC groups flow into victim token groups .-> I
+
+  classDef startNode fill:#d7263d,stroke:#8f1322,color:#ffffff,stroke-width:2px;
+  classDef endNode fill:#ff9f1c,stroke:#b86b00,color:#1f1300,stroke-width:2px;
+  class A startNode;
+  class I endNode;
+  linkStyle 8 stroke:#ff3b30,stroke-width:3px,stroke-dasharray:8 6,color:#ff3b30;
 ```
 
 Static SVG: [Docs/diagrams/golden-ticket-trust-flow.svg](Docs/diagrams/golden-ticket-trust-flow.svg)

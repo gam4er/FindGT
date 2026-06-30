@@ -1,6 +1,14 @@
 # FindGT — детектор аномалий членства для Golden Ticket
 
-> English version: [README.md](README.md). Файлы README на всех языках должны быть эквивалентны по смыслу — см. [AGENTS.md](AGENTS.md).
+> Версии README по языкам:
+>
+> | Язык    | Файл                         |
+> | ------- | ---------------------------- |
+> | English | [README.md](README.md)       |
+> | Russian | [README.ru.md](README.ru.md) |
+> | Greek   | [README.el.md](README.el.md) |
+>
+> Файлы README на всех языках должны быть эквивалентны по смыслу — см. [AGENTS.md](AGENTS.md).
 
 FindGT проверяет **Kerberos‑сессии входа** Windows и сравнивает членство в группах,
 **заявленное токеном каждой сессии**, с **авторитетным членством**, которое для этого
@@ -19,7 +27,7 @@ SID групп (`Domain Admins`, `Enterprise Admins`, `Schema Admins` и т.п.)
 1. Атакующий подделывает TGT (Golden Ticket) и помещает фейковое членство в PAC.
 2. Атакующий отправляет этот TGT на KDC в запросе TGS к целевому сервису.
 3. KDC проверяет криптографическую валидность билета (доверительный путь KRBTGT).
-4. Если криптография валидна, KDC выпускает сервисный билет и переносит данные авторизации.
+4. Если криптография валидна, KDC выпускает сервисный билет и переносит PAC-данные авторизации из входящего TGT, не перестраивая членство по AD на этом TGS-этапе.
 5. Атакующий предъявляет сервисный билет хосту-жертве.
 6. На хосте LSASS проверяет криптографию сервисного билета.
 7. LSASS материализует данные идентичности/групп в токене сессии.
@@ -27,14 +35,23 @@ SID групп (`Domain Admins`, `Enterprise Admins`, `Schema Admins` и т.п.)
 9. Мы видим это в token groups созданной сессии.
 
 ```mermaid
-flowchart LR
-  A[Атакующий подделывает TGT + фейковые группы PAC] --> B[TGS-REQ на KDC]
-  B --> C[KDC проверяет криптографию]
-  C --> D[KDC выдаёт сервисный билет]
-  D --> E[TGS предъявляется хосту-жертве]
-  E --> F[LSASS проверяет криптографию билета]
-  F --> G[Создаётся токен сессии]
-  G --> H[Token Groups содержат фейковое членство]
+flowchart TD
+  A[1. Атакующий подделывает TGT и вставляет фейковые группы в PAC] --> B[2. Отправляется TGS-REQ на KDC]
+  B --> C[3. KDC проверяет криптографию TGT]
+  C --> D[4. KDC выдаёт сервисный билет и переносит PAC-данные авторизации из TGT без перестроения членства из AD]
+  D --> E[5. Сервисный билет возвращается атакующему]
+  E --> F[6. TGS предъявляется хосту-жертве]
+  F --> G[7. LSASS проверяет криптографию сервисного билета]
+  G --> H[8. Создаётся токен сессии]
+  H --> I[9. В Token Groups наблюдается поддельное членство]
+
+  A -. Причинная цепочка: фейковые группы из PAC переходят в Token Groups на хосте-жертве .-> I
+
+  classDef startNode fill:#d7263d,stroke:#8f1322,color:#ffffff,stroke-width:2px;
+  classDef endNode fill:#ff9f1c,stroke:#b86b00,color:#1f1300,stroke-width:2px;
+  class A startNode;
+  class I endNode;
+  linkStyle 8 stroke:#ff3b30,stroke-width:3px,stroke-dasharray:8 6,color:#ff3b30;
 ```
 
 Статическая SVG-версия: [Docs/diagrams/golden-ticket-trust-flow.svg](Docs/diagrams/golden-ticket-trust-flow.svg)
