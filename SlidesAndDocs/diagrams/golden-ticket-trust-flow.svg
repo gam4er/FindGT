@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="1320" viewBox="0 0 980 1320" role="img" aria-label="Golden Ticket trust flow vertical">
+  <defs>
+    <style>
+      .title { font: 24px 'Segoe UI Semibold', Arial, sans-serif; fill: #0f2f44; }
+      .box { fill: #f7fbff; stroke: #2b5f8a; stroke-width: 2; rx: 10; ry: 10; }
+      .start { fill: #d7263d; stroke: #8f1322; }
+      .end { fill: #ff9f1c; stroke: #b86b00; }
+      .txt { font: 16px 'Segoe UI', Arial, sans-serif; fill: #12324a; }
+      .txtInv { font: 16px 'Segoe UI', Arial, sans-serif; fill: #ffffff; }
+      .arrow { stroke: #2b5f8a; stroke-width: 2; marker-end: url(#mBlue); }
+      .causal { stroke: #ff3b30; stroke-width: 3; stroke-dasharray: 9 6; marker-end: url(#mRed); fill: none; }
+      .label { font: 14px 'Segoe UI', Arial, sans-serif; fill: #8f1322; }
+    </style>
+    <marker id="mBlue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#2b5f8a" />
+    </marker>
+    <marker id="mRed" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#ff3b30" />
+    </marker>
+  </defs>
+
+  <text x="24" y="36" class="title">Why hosts trust a Golden Ticket (vertical flow)</text>
+
+  <rect x="120" y="80" width="740" height="86" class="box start" />
+  <text x="146" y="116" class="txtInv">1. Attacker forges TGT and inserts fake PAC groups</text>
+
+  <rect x="120" y="196" width="740" height="76" class="box" />
+  <text x="146" y="242" class="txt">2. TGS-REQ to KDC</text>
+
+  <rect x="120" y="302" width="740" height="76" class="box" />
+  <text x="146" y="348" class="txt">3. KDC validates TGT cryptography</text>
+
+  <rect x="120" y="408" width="740" height="112" class="box" />
+  <text x="146" y="444" class="txt">4. KDC issues service ticket and propagates PAC authorization data from TGT</text>
+  <text x="146" y="470" class="txt">without AD membership reconstruction at this TGS stage</text>
+
+  <rect x="120" y="550" width="740" height="76" class="box" />
+  <text x="146" y="596" class="txt">5. Service ticket returned to attacker</text>
+
+  <rect x="120" y="656" width="740" height="76" class="box" />
+  <text x="146" y="702" class="txt">6. TGS presented to victim host</text>
+
+  <rect x="120" y="762" width="740" height="76" class="box" />
+  <text x="146" y="808" class="txt">7. LSASS validates service-ticket cryptography</text>
+
+  <rect x="120" y="868" width="740" height="76" class="box" />
+  <text x="146" y="914" class="txt">8. Session token created</text>
+
+  <rect x="120" y="974" width="740" height="86" class="box end" />
+  <text x="146" y="1010" class="txt">9. Token Groups contain forged membership</text>
+
+  <line x1="490" y1="166" x2="490" y2="196" class="arrow" />
+  <line x1="490" y1="272" x2="490" y2="302" class="arrow" />
+  <line x1="490" y1="378" x2="490" y2="408" class="arrow" />
+  <line x1="490" y1="520" x2="490" y2="550" class="arrow" />
+  <line x1="490" y1="626" x2="490" y2="656" class="arrow" />
+  <line x1="490" y1="732" x2="490" y2="762" class="arrow" />
+  <line x1="490" y1="838" x2="490" y2="868" class="arrow" />
+  <line x1="490" y1="944" x2="490" y2="974" class="arrow" />
+
+  <path d="M860,124 C930,124 930,1018 860,1018" class="causal" />
+  <text x="640" y="114" class="label">Causal path: forged PAC groups -&gt; victim token groups</text>
+</svg>
