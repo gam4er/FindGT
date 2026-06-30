@@ -1,6 +1,14 @@
 # FindGT — ανιχνευτής ανωμαλιών συμμετοχής ομάδων για Golden Ticket
 
-> Αγγλική έκδοση: [README.md](README.md). Όλα τα README σε όλες τις γλώσσες πρέπει να έχουν ισοδύναμο νόημα — δείτε [AGENTS.md](AGENTS.md).
+> Εκδόσεις README ανά γλώσσα:
+>
+> | Γλώσσα  | Αρχείο                       |
+> | ------- | ---------------------------- |
+> | English | [README.md](README.md)       |
+> | Russian | [README.ru.md](README.ru.md) |
+> | Greek   | [README.el.md](README.el.md) |
+>
+> Όλα τα README σε όλες τις γλώσσες πρέπει να έχουν ισοδύναμο νόημα — δείτε [AGENTS.md](AGENTS.md).
 
 Το FindGT εξετάζει τις **Kerberos logon sessions** στα Windows και συγκρίνει τη συμμετοχή ομάδων
 **που δηλώνεται από το token κάθε session** με τη **θεμελιωμένη (authoritative) συμμετοχή** που
@@ -19,7 +27,7 @@ SID ομάδων (π.χ. `Domain Admins`, `Enterprise Admins`, `Schema Admins`).
 1. Ο επιτιθέμενος πλαστογραφεί TGT (Golden Ticket) και εισάγει ψεύτικη συμμετοχή ομάδων στο PAC.
 2. Στέλνει αυτό το TGT στον KDC σε TGS request για υπηρεσία-στόχο.
 3. Ο KDC ελέγχει την κρυπτογραφική εγκυρότητα του ticket (αλυσίδα εμπιστοσύνης KRBTGT).
-4. Αν η κρυπτογραφία είναι έγκυρη, ο KDC εκδίδει service ticket και μεταφέρει δεδομένα εξουσιοδότησης.
+4. Αν η κρυπτογραφία είναι έγκυρη, ο KDC εκδίδει service ticket και μεταφέρει PAC authorization data από το εισερχόμενο TGT χωρίς ανακατασκευή του group membership από το AD σε αυτό το στάδιο TGS.
 5. Ο επιτιθέμενος παρουσιάζει το service ticket στο host-θύμα.
 6. Στο host, το LSASS ελέγχει την κρυπτογραφία του service ticket.
 7. Το LSASS υλοποιεί identity/group data στο token του logon session.
@@ -27,14 +35,23 @@ SID ομάδων (π.χ. `Domain Admins`, `Enterprise Admins`, `Schema Admins`).
 9. Το βλέπουμε στα token groups του νέου session.
 
 ```mermaid
-flowchart LR
-  A[Ο επιτιθέμενος πλαστογραφεί TGT + ψεύτικες ομάδες PAC] --> B[TGS-REQ προς KDC]
-  B --> C[Ο KDC ελέγχει την κρυπτογραφία]
-  C --> D[Ο KDC εκδίδει service ticket]
-  D --> E[Το TGS παρουσιάζεται στο host-θύμα]
-  E --> F[Το LSASS ελέγχει την κρυπτογραφία του ticket]
-  F --> G[Δημιουργείται token session]
-  G --> H[Τα Token Groups περιέχουν πλαστή συμμετοχή]
+flowchart TD
+  A[1. Ο επιτιθέμενος πλαστογραφεί TGT και εισάγει ψεύτικες ομάδες στο PAC] --> B[2. Στέλνεται TGS-REQ στον KDC]
+  B --> C[3. Ο KDC ελέγχει την κρυπτογραφία του TGT]
+  C --> D[4. Ο KDC εκδίδει service ticket και μεταφέρει PAC authorization data από το TGT χωρίς ανακατασκευή membership από το AD]
+  D --> E[5. Το service ticket επιστρέφει στον επιτιθέμενο]
+  E --> F[6. Το TGS παρουσιάζεται στο host-θύμα]
+  F --> G[7. Το LSASS ελέγχει την κρυπτογραφία του service ticket]
+  G --> H[8. Δημιουργείται token session]
+  H --> I[9. Τα Token Groups περιέχουν πλαστή συμμετοχή]
+
+  A -. Αιτιακή διαδρομή: οι ψεύτικες ομάδες στο PAC καταλήγουν στα Token Groups του θύματος .-> I
+
+  classDef startNode fill:#d7263d,stroke:#8f1322,color:#ffffff,stroke-width:2px;
+  classDef endNode fill:#ff9f1c,stroke:#b86b00,color:#1f1300,stroke-width:2px;
+  class A startNode;
+  class I endNode;
+  linkStyle 8 stroke:#ff3b30,stroke-width:3px,stroke-dasharray:8 6,color:#ff3b30;
 ```
 
 Static SVG: [Docs/diagrams/golden-ticket-trust-flow.svg](Docs/diagrams/golden-ticket-trust-flow.svg)
