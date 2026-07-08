@@ -142,6 +142,90 @@ user's session cannot influence the authoritative answer.
 | **FindGT**             | Main tool: session scan, membership diff, Spectre.Console report, NRPC secure-channel + S4U diagnostics.     | .NET Framework 4.7.2, x64 |
 | **LsaSecretExtractor** | Extracts the machine-account secret / NT hash from LSA (registry decrypt) to a file, for NRPC bootstrapping. | .NET Framework 4.8        |
 
+## Indicators of Golden Tickets
+
+Below are practical artifacts that help distinguish forged tickets from KDC-issued tickets in
+real investigations. Treat them as a signal set, not a single magic test.
+
+### Indicator 1: Resource-group representation of RID 572
+
+For `Domain Admins`, the `Denied RODC Password Replication Group` (RID 572) context is critical.
+
+- In forged (golden) paths, this group may appear as a regular group.
+- In legitimate paths, it appears in token context as `Mandatory, Resource`.
+
+Illustration:
+
+- Golden: ![Golden Administrator](Docs/letters/Golden_Administrator.png)
+- Legit: ![Real Administrator](Docs/letters/Real_Administrator.png)
+
+Why this is possible:
+
+- Mimikatz PAC generation leaves resource-group fields unpopulated:
+  [kuhl_m_kerberos_pac.c#L168-L172](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L168-L172)
+- Field semantics are defined in MS-PAC:
+  [MS-PAC / KERB_VALIDATION_INFO](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/69e86ccc-85e3-41b9-b514-7d969cd0ed73)
+
+### Indicator 2: null pointer vs empty-string pointer in LOGON_INFO
+
+At wire-level NDR, string fields (`FullName`, `LogonScript`, `ProfilePath`, `HomeDirectory`,
+`HomeDirectoryDrive`, `ServerName`) in golden tickets are often encoded as null pointers.
+In legitimate PAC, even empty values are often represented as a non-null pointer to an empty array.
+
+Important: for network logon, empty `FullName` can be legitimate. The signal is the
+**representation form** (null pointer vs empty-string pointer), not emptiness alone.
+
+Why this happens:
+
+- `KERB_VALIDATION_INFO` is allocated with `LocalAlloc(LPTR, ...)`, so memory is zeroed:
+  [kuhl_m_kerberos_pac.c#L146-L173](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L146-L173)
+- Field behavior is defined in MS-PAC:
+  [MS-PAC / KERB_VALIDATION_INFO](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/69e86ccc-85e3-41b9-b514-7d969cd0ed73)
+
+### Indicator 3: missing PAC type 12 (`UPN_DNS_INFO`)
+
+In golden-ticket traces, `UPN_DNS_INFO` (type 12) is often missing, while in legitimate paths
+KDC usually includes this buffer.
+
+- PAC buffer type map: [MS-PAC / PAC_INFO_BUFFER](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/3341cfa2-6ef5-42e0-b7bc-4544884bf399)
+- Type 12 structure: [MS-PAC / UPN_DNS_INFO](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/1c0d6e11-6443-4846-b744-f9f810a504eb)
+- Mimikatz PAC creation path (without type 12):
+  [kuhl_m_kerberos_pac.c#L8](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L8)
+
+### Indicator 4: `EffectiveName.MaximumLength = Length + 2`
+
+Golden-ticket PAC often shows `MaximumLength = Length + 2` (from `RtlInitUnicodeString`),
+whereas legitimate PAC frequently shows `MaximumLength = Length`.
+
+- Name assignment path: [kuhl_m_kerberos_pac.c#L157](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L157)
+- Field definition: [MS-PAC / EffectiveName](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/69e86ccc-85e3-41b9-b514-7d969cd0ed73)
+
+### Indicator 5: historical AD fields look unnatural
+
+Typical golden-ticket pattern:
+
+- `LogonCount = 0`
+- `PasswordLastSet` assigned via `KIWI_NEVERTIME` (`MAXLONGLONG`)
+
+References:
+
+- [kuhl_m_kerberos_pac.c#L154](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L154)
+- [globals.h#L97 (KIWI_NEVERTIME)](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/inc/globals.h#L97)
+- [MS-PAC / PasswordLastSet](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/69e86ccc-85e3-41b9-b514-7d969cd0ed73)
+
+Note: for "password never set", spec expects a zero FILETIME value. Therefore `MAXLONGLONG`
+is a useful artifact for correlation.
+
+### Indicator 6: lowercase `crealm` (heuristic)
+
+If forged tickets copy `crealm` directly from CLI and keep lowercase, while your legitimate
+infrastructure usually presents uppercase canonical form, this is a useful heuristic.
+
+Important: use only as a supplementary signal, not a standalone verdict.
+Prefer PAC/token indicators above for primary decisions.
+
+---
+
 ## Requirements
 
 - Windows, **domain-joined** host.

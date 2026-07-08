@@ -103,7 +103,7 @@ FindGT наиболее информативен в production-like AD-сред�
 
 ## Примечание по утверждениям о Mimikatz / Rubeus
 
-Некорректно утверждать, что современные инструменты строго ограничены только «однодоменным"
+Некорректно утверждать, что современные инструменты строго ограничены только "однодоменным"
 членством. Текущие реализации умеют заполнять и `GroupIds`, и `ExtraSids` в
 PAC/KERB_VALIDATION_INFO. Будут ли междоменный SID реально принят, определяют trust, SID
 filtering и PAC validation политики конкретной среды.
@@ -143,6 +143,91 @@ Rubeus (официальные upstream permalink):
 | ---------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------- |
 | **FindGT**             | Основной инструмент: скан сессий, дифф членства, отчёт Spectre.Console, диагностика NRPC secure‑channel и S4U. | .NET Framework 4.7.2, x64 |
 | **LsaSecretExtractor** | Извлекает секрет / NT‑хэш машинной учётки из LSA (расшифровка из реестра) в файл, для бутстрапа NRPC.          | .NET Framework 4.8        |
+
+## Признаки Golden Ticket
+
+Ниже приведены рабочие артефакты, которые в реальных расследованиях помогают отличать
+поддельные билеты от KDC-issued билетов. Это не «магическая кнопка», а набор сигналов,
+которые лучше использовать в связке.
+
+### Признак 1: Resource Group-представление RID 572
+
+Для `Domain Admins` критичен контекст группы `Denied RODC Password Replication Group` (RID 572).
+
+- В поддельном пути (golden) группа может выглядеть как обычная.
+- В легитимном пути в token она приходит как `Mandatory, Resource`.
+
+Иллюстрация:
+
+- Golden: ![Golden Administrator](Docs/letters/Golden_Administrator.png)
+- Legit: ![Real Administrator](Docs/letters/Real_Administrator.png)
+
+Почему это возможно:
+
+- В генерации PAC Mimikatz поля resource groups не заполняются:
+  [kuhl_m_kerberos_pac.c#L168-L172](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L168-L172)
+- Структура и назначение полей описаны в MS-PAC:
+  [MS-PAC / KERB_VALIDATION_INFO](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/69e86ccc-85e3-41b9-b514-7d969cd0ed73)
+
+### Признак 2: null pointer vs empty string pointer в LOGON_INFO
+
+В wire-level NDR строковые поля (`FullName`, `LogonScript`, `ProfilePath`, `HomeDirectory`,
+`HomeDirectoryDrive`, `ServerName`) в golden-билетах часто кодируются как null pointers.
+В легитимном PAC при пустых значениях часто виден ненулевой pointer на пустой массив.
+
+Важно: для network logon пустой `FullName` сам по себе нормален. Признак здесь именно
+в форме представления (null pointer vs empty string pointer), а не в том, что строка пустая.
+
+Почему это происходит:
+
+- `KERB_VALIDATION_INFO` создаётся через `LocalAlloc(LPTR, ...)`, память обнуляется:
+  [kuhl_m_kerberos_pac.c#L146-L173](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L146-L173)
+- Семантика полей описана в MS-PAC:
+  [MS-PAC / KERB_VALIDATION_INFO](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/69e86ccc-85e3-41b9-b514-7d969cd0ed73)
+
+### Признак 3: отсутствие PAC type 12 (`UPN_DNS_INFO`)
+
+В трассах golden-билетов часто отсутствует `UPN_DNS_INFO` (type 12), тогда как в легитимном
+пути KDC обычно добавляет этот буфер.
+
+- Типы PAC buffer: [MS-PAC / PAC_INFO_BUFFER](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/3341cfa2-6ef5-42e0-b7bc-4544884bf399)
+- Структура type 12: [MS-PAC / UPN_DNS_INFO](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/1c0d6e11-6443-4846-b744-f9f810a504eb)
+- Генерация PAC в Mimikatz (без type 12):
+  [kuhl_m_kerberos_pac.c#L8](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L8)
+
+### Признак 4: `EffectiveName.MaximumLength = Length + 2`
+
+При генерации golden-билета видно паттерн `MaximumLength = Length + 2` (из-за
+`RtlInitUnicodeString`), тогда как в легитимном PAC часто встречается `MaximumLength = Length`.
+
+- Установка имени: [kuhl_m_kerberos_pac.c#L157](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L157)
+- Поле в спецификации: [MS-PAC / EffectiveName](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/69e86ccc-85e3-41b9-b514-7d969cd0ed73)
+
+### Признак 5: исторические поля AD выглядят неестественно
+
+Для golden-билетов типично:
+
+- `LogonCount = 0`
+- `PasswordLastSet` выставлен через `KIWI_NEVERTIME` (`MAXLONGLONG`)
+
+Ссылки:
+
+- [kuhl_m_kerberos_pac.c#L154](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L154)
+- [globals.h#L97 (KIWI_NEVERTIME)](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/inc/globals.h#L97)
+- [MS-PAC / PasswordLastSet](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/69e86ccc-85e3-41b9-b514-7d969cd0ed73)
+
+Примечание: по спецификации для случая "password never set" у `PasswordLastSet` ожидается
+нулевое FILETIME-значение. Поэтому `MAXLONGLONG` является полезным артефактом для корреляции.
+
+### Признак 6: `crealm` в lowercase (эвристика)
+
+Если в поддельном билете `crealm` копируется напрямую из CLI-параметра и остаётся lowercase,
+а в легитимной инфраструктуре вы обычно видите uppercase-канон, это полезная эвристика.
+
+Важно: использовать только как дополнительный сигнал, не как самостоятельный verdict.
+Полагаться лучше на PAC/token-сигналы выше.
+
+---
 
 ## Требования
 
