@@ -35,22 +35,38 @@ SID ομάδων (π.χ. `Domain Admins`, `Enterprise Admins`, `Schema Admins`).
 9. Το βλέπουμε στα token groups του νέου session.
 
 ```mermaid
+---
+config:
+  htmlLabels: false
+  markdownAutoWrap: true
+  flowchart:
+    useMaxWidth: false
+    wrappingWidth: 300
+    nodeSpacing: 50
+    rankSpacing: 60
+---
 flowchart TD
-  A[1. Ο επιτιθέμενος πλαστογραφεί TGT και εισάγει ψεύτικες ομάδες στο PAC] --> B[2. Στέλνεται TGS-REQ στον KDC]
-  B --> C[3. Ο KDC ελέγχει την κρυπτογραφία του TGT]
-  C --> D[4. Ο KDC εκδίδει service ticket και μεταφέρει PAC authorization data από το TGT χωρίς ανακατασκευή membership από το AD]
-  D --> E[5. Το service ticket επιστρέφει στον επιτιθέμενο]
-  E --> F[6. Το TGS παρουσιάζεται στο host-θύμα]
-  F --> G[7. Το LSASS ελέγχει την κρυπτογραφία του service ticket]
-  G --> H[8. Δημιουργείται token session]
-  H --> I[9. Τα Token Groups περιέχουν πλαστή συμμετοχή]
+  A["`1. Ο επιτιθέμενος πλαστογραφεί TGT και εισάγει ψεύτικες ομάδες στο PAC`"]
+    --> B["`2. Στέλνεται TGS-REQ στον KDC`"]
 
-  A -. Αιτιακή διαδρομή: οι ψεύτικες ομάδες στο PAC καταλήγουν στα Token Groups του θύματος .-> I
+  B --> C["`3. Ο KDC ελέγχει την κρυπτογραφία του TGT`"]
+
+  C --> D["`4. Ο KDC εκδίδει service ticket και μεταφέρει PAC authorization data από το TGT χωρίς ανακατασκευή membership από το AD`"]
+
+  D --> E["`5. Το service ticket επιστρέφει στον επιτιθέμενο`"]
+  E --> F["`6. Το TGS παρουσιάζεται στο host-θύμα`"]
+  F --> G["`7. Το LSASS ελέγχει την κρυπτογραφία του service ticket`"]
+  G --> H["`8. Δημιουργείται token session`"]
+  H --> I["`9. Τα Token Groups περιέχουν πλαστή συμμετοχή`"]
+
+  A -. "`Αιτιακή διαδρομή: οι ψεύτικες ομάδες στο PAC καταλήγουν στα Token Groups του θύματος`" .-> I
 
   classDef startNode fill:#d7263d,stroke:#8f1322,color:#ffffff,stroke-width:2px;
   classDef endNode fill:#ff9f1c,stroke:#b86b00,color:#1f1300,stroke-width:2px;
+
   class A startNode;
   class I endNode;
+
   linkStyle 8 stroke:#ff3b30,stroke-width:3px;
 ```
 
@@ -66,22 +82,32 @@ Static SVG: [SlidesAndDocs/diagrams/golden-ticket-trust-flow.svg](SlidesAndDocs/
 - Λόγος ασφάλειας: τέτοια προσέγγιση αυξάνει την έκθεση key material και την επιφάνεια επίθεσης.
 
 ```mermaid
+---
+config:
+  htmlLabels: false
+  markdownAutoWrap: true
+  flowchart:
+    useMaxWidth: false
+    wrappingWidth: 300
+    nodeSpacing: 50
+    rankSpacing: 60
+---
 flowchart TB
-  subgraph Observable[Παρατηρήσιμο στο endpoint]
-    S[LSASS sessions]
-    T[Token groups]
-    D[Diff token έναντι authoritative]
+  subgraph Observable["`Παρατηρήσιμο στο endpoint`"]
+    S["`LSASS sessions`"]
+    T["`Token groups`"]
+    D["`Diff token έναντι authoritative`"]
   end
 
-  subgraph Encrypted[Κρυπτογραφημένο ή υψηλού ρίσκου να εκτεθεί]
-    K[Κρυπτογραφημένα μέρη TGT/TGS]
-    R[Μακροχρόνια κλειδιά KRBTGT και υπηρεσιών]
+  subgraph Encrypted["`Κρυπτογραφημένο ή υψηλού ρίσκου να εκτεθεί`"]
+    K["`Κρυπτογραφημένα μέρη TGT/TGS`"]
+    R["`Μακροχρόνια κλειδιά KRBTGT και υπηρεσιών`"]
   end
 
   S --> D
   T --> D
-  K -. αποφεύγουμε τη μαζική αποκρυπτογράφηση σε endpoint .-> D
-  R -. περιορίζουμε την έκθεση key material .-> D
+  K -. "`αποφεύγουμε τη μαζική αποκρυπτογράφηση σε endpoint`" .-> D
+  R -. "`περιορίζουμε την έκθεση key material`" .-> D
 ```
 
 Static SVG: [SlidesAndDocs/diagrams/findgt-observable-boundary.svg](SlidesAndDocs/diagrams/findgt-observable-boundary.svg)
@@ -159,8 +185,8 @@ KDC-issued tickets σε πραγματικές έρευνες. Χρησιμοπ�
 
 Εικονογράφηση:
 
-- Golden: ![Golden Administrator](Docs/letters/Golden_Administrator.png)
-- Legit: ![Real Administrator](Docs/letters/Real_Administrator.png)
+- Golden: ![Golden Administrator](SlidesAndDocs/Pic/Golden_Administrator.png)
+- Legit: ![Real Administrator](SlidesAndDocs/Pic/Real_Administrator.png)
 
 Γιατί συμβαίνει:
 
@@ -178,6 +204,16 @@ KDC-issued tickets σε πραγματικές έρευνες. Χρησιμοπ�
 Σημαντικό: για network logon, το κενό `FullName` μπορεί να είναι απολύτως νόμιμο. Το σήμα είναι
 η **μορφή αναπαράστασης** (null pointer vs empty-string pointer), όχι η κενότητα από μόνη της.
 
+Εικονογράφηση (πεδίο Full name):
+
+- Golden: ![Golden Full name](SlidesAndDocs/Pic/Full_name_is_null.png)
+- Legit: ![Real Full name](SlidesAndDocs/Pic/Full_name_Administrator.png)
+
+Εικονογράφηση (πεδίο Logon script):
+
+- Golden: ![Golden Logon script](SlidesAndDocs/Pic/Logon_script_is_empty_string.png)
+- Legit: ![Real Logon script](SlidesAndDocs/Pic/Logon_script_is_NULL.png)
+
 Γιατί συμβαίνει:
 
 - Το `KERB_VALIDATION_INFO` γίνεται allocate με `LocalAlloc(LPTR, ...)`, άρα η μνήμη μηδενίζεται:
@@ -190,6 +226,11 @@ KDC-issued tickets σε πραγματικές έρευνες. Χρησιμοπ�
 Σε golden-ticket traces, το `UPN_DNS_INFO` (type 12) λείπει συχνά, ενώ σε legitimate paths
 ο KDC συνήθως συμπεριλαμβάνει αυτό το buffer.
 
+Εικονογράφηση (δομή UPN):
+
+- Golden: ![Golden UPN](SlidesAndDocs/Pic/No_UPN.png)
+- Legit: ![Real UPN](SlidesAndDocs/Pic/UPN_exists.png)
+
 - Χάρτης PAC buffer types: [MS-PAC / PAC_INFO_BUFFER](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/3341cfa2-6ef5-42e0-b7bc-4544884bf399)
 - Δομή type 12: [MS-PAC / UPN_DNS_INFO](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/1c0d6e11-6443-4846-b744-f9f810a504eb)
 - Path δημιουργίας PAC στο Mimikatz (χωρίς type 12):
@@ -200,6 +241,11 @@ KDC-issued tickets σε πραγματικές έρευνες. Χρησιμοπ�
 Σε golden-ticket PAC συχνά εμφανίζεται `MaximumLength = Length + 2` (λόγω
 `RtlInitUnicodeString`), ενώ σε legitimate PAC συχνά παρατηρείται `MaximumLength = Length`.
 
+Εικονογράφηση (EffectiveName):
+
+- Golden: ![Golden +1 symbol](SlidesAndDocs/Pic/EffectiveName_and_time_is_bad.png)
+- Legit: ![Real size == length](SlidesAndDocs/Pic/EffectiveName_and_time_is_OK.png)
+
 - Path εκχώρησης ονόματος: [kuhl_m_kerberos_pac.c#L157](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L157)
 - Ορισμός πεδίου: [MS-PAC / EffectiveName](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/69e86ccc-85e3-41b9-b514-7d969cd0ed73)
 
@@ -209,6 +255,11 @@ KDC-issued tickets σε πραγματικές έρευνες. Χρησιμοπ�
 
 - `LogonCount = 0`
 - `PasswordLastSet` με `KIWI_NEVERTIME` (`MAXLONGLONG`)
+
+Εικονογράφηση (τιμές απευθείας από το AD):
+
+- Golden: ![Golden LogonCount + PasswordLastSet](SlidesAndDocs/Pic/LogonCount_and_PwdLastSet_BAD.png)
+- Legit: ![Real LogonCount + PasswordLastSet](SlidesAndDocs/Pic/EffectiveName_and_time_is_OK.png)
 
 Αναφορές:
 

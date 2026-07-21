@@ -81,22 +81,32 @@ and safer detection surface on endpoints.
 - Security reason: broad decryption workflows would increase key-material exposure and attack surface.
 
 ```mermaid
+---
+config:
+  htmlLabels: false
+  markdownAutoWrap: true
+  flowchart:
+    useMaxWidth: false
+    wrappingWidth: 300
+    nodeSpacing: 50
+    rankSpacing: 60
+---
 flowchart TB
-  subgraph Observable[Observable on endpoint]
-    S[LSASS sessions]
-    T[Token groups]
-    D[Token vs authoritative diff]
+  subgraph Observable["`Observable on endpoint`"]
+    S["`LSASS sessions`"]
+    T["`Token groups`"]
+    D["`Token vs authoritative diff`"]
   end
 
-  subgraph Encrypted[Encrypted or high-risk to expose]
-    K[TGT/TGS encrypted parts]
-    R[KRBTGT and service long-term keys]
+  subgraph Encrypted["`Encrypted or high-risk to expose`"]
+    K["`TGT/TGS encrypted parts`"]
+    R["`KRBTGT and service long-term keys`"]
   end
 
   S --> D
   T --> D
-  K -. avoid broad endpoint decryption .-> D
-  R -. keep key material constrained .-> D
+  K -. "`avoid broad endpoint decryption`" .-> D
+  R -. "`keep key material constrained`" .-> D
 ```
 
 Static SVG: [SlidesAndDocs/diagrams/findgt-observable-boundary.svg](SlidesAndDocs/diagrams/findgt-observable-boundary.svg)
@@ -191,6 +201,16 @@ In legitimate PAC, even empty values are often represented as a non-null pointer
 Important: for network logon, empty `FullName` can be legitimate. The signal is the
 **representation form** (null pointer vs empty-string pointer), not emptiness alone.
 
+Illustration (Full name field):
+
+- Golden: ![Golden Full name](SlidesAndDocs/Pic/Full_name_is_null.png)
+- Legit: ![Real Full name](SlidesAndDocs/Pic/Full_name_Administrator.png)
+
+Illustration (Logon script field):
+
+- Golden: ![Golden Logon script](SlidesAndDocs/Pic/Logon_script_is_empty_string.png)
+- Legit: ![Real Logon script](SlidesAndDocs/Pic/Logon_script_is_NULL.png)
+
 Why this happens:
 
 - `KERB_VALIDATION_INFO` is allocated with `LocalAlloc(LPTR, ...)`, so memory is zeroed:
@@ -203,6 +223,11 @@ Why this happens:
 In golden-ticket traces, `UPN_DNS_INFO` (type 12) is often missing, while in legitimate paths
 KDC usually includes this buffer.
 
+Illustration (UPN structure):
+
+- Golden: ![Golden UPN](SlidesAndDocs/Pic/No_UPN.png)
+- Legit: ![Real UPN](SlidesAndDocs/Pic/UPN_exists.png)
+
 - PAC buffer type map: [MS-PAC / PAC_INFO_BUFFER](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/3341cfa2-6ef5-42e0-b7bc-4544884bf399)
 - Type 12 structure: [MS-PAC / UPN_DNS_INFO](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/1c0d6e11-6443-4846-b744-f9f810a504eb)
 - Mimikatz PAC creation path (without type 12):
@@ -213,6 +238,11 @@ KDC usually includes this buffer.
 Golden-ticket PAC often shows `MaximumLength = Length + 2` (from `RtlInitUnicodeString`),
 whereas legitimate PAC frequently shows `MaximumLength = Length`.
 
+Illustration (EffectiveName):
+
+- Golden: ![Golden +1 symbol](SlidesAndDocs/Pic/EffectiveName_and_time_is_bad.png)
+- Legit: ![Real size == length](SlidesAndDocs/Pic/EffectiveName_and_time_is_OK.png)
+
 - Name assignment path: [kuhl_m_kerberos_pac.c#L157](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L157)
 - Field definition: [MS-PAC / EffectiveName](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/69e86ccc-85e3-41b9-b514-7d969cd0ed73)
 
@@ -222,6 +252,11 @@ Typical golden-ticket pattern:
 
 - `LogonCount = 0`
 - `PasswordLastSet` assigned via `KIWI_NEVERTIME` (`MAXLONGLONG`)
+
+Illustration (values sourced directly from AD):
+
+- Golden: ![Golden LogonCount + PasswordLastSet](SlidesAndDocs/Pic/LogonCount_and_PwdLastSet_BAD.png)
+- Legit: ![Real LogonCount + PasswordLastSet](SlidesAndDocs/Pic/EffectiveName_and_time_is_OK.png)
 
 References:
 

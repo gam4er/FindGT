@@ -82,22 +82,32 @@ FindGT анализирует LSASS-сессии и token groups, потому �
 - Причина безопасности: такой подход расширяет экспозицию ключевого материала и поверхность атаки.
 
 ```mermaid
+---
+config:
+  htmlLabels: false
+  markdownAutoWrap: true
+  flowchart:
+    useMaxWidth: false
+    wrappingWidth: 300
+    nodeSpacing: 50
+    rankSpacing: 60
+---
 flowchart TB
-  subgraph Observable[Наблюдаемо на endpoint]
-    S[LSASS-сессии]
-    T[Token Groups]
-    D[Дифф токена против эталона]
+  subgraph Observable["`Наблюдаемо на endpoint`"]
+    S["`LSASS-сессии`"]
+    T["`Token Groups`"]
+    D["`Дифф токена против эталона`"]
   end
 
-  subgraph Encrypted[Зашифровано или рискованно раскрывать]
-    K[Зашифрованные части TGT/TGS]
-    R[Долгоживущие ключи KRBTGT и сервисов]
+  subgraph Encrypted["`Зашифровано или рискованно раскрывать`"]
+    K["`Зашифрованные части TGT/TGS`"]
+    R["`Долгоживущие ключи KRBTGT и сервисов`"]
   end
 
   S --> D
   T --> D
-  K -. избегаем массовой endpoint-дешифрации .-> D
-  R -. ключевой материал держим минимально распространенным .-> D
+  K -. "`избегаем массовой endpoint-дешифрации`" .-> D
+  R -. "`ключевой материал держим минимально распространенным`" .-> D
 ```
 
 Статическая SVG-версия: [SlidesAndDocs/diagrams/findgt-observable-boundary.svg](SlidesAndDocs/diagrams/findgt-observable-boundary.svg)

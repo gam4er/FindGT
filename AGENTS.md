@@ -48,7 +48,6 @@ documentation model, or repository constraints change.
 ## README parity process
 
 - Keep all README language files synchronized with [README.ru.md](README.ru.md) (primary canonical source).
-- Maintain [README_EQUIVALENCE.md](README_EQUIVALENCE.md) whenever multilingual semantics change.
 - Parity includes:
   - the same major section set and order,
   - the same technical meaning and accuracy,
@@ -59,6 +58,27 @@ documentation model, or repository constraints change.
 - Do not let one language variant silently become more optimistic, more complete, or more outdated
   than the primary [README.ru.md](README.ru.md).
 
+## README equivalence compliance
+
+- The README language set currently tracked for parity is:
+  - [README.ru.md](README.ru.md) — primary canonical source (Russian)
+  - [README.md](README.md) — translation (English)
+  - [README.el.md](README.el.md) — translation (Greek)
+- Compliance expectations for multilingual parity are:
+  - canonical source is defined and used consistently,
+  - all current README language files are known and tracked,
+  - README language files are updated together from [README.ru.md](README.ru.md) for significant changes,
+  - major sections and overall structure stay aligned across language variants,
+  - diagram presence and SVG fallback links stay aligned across language variants,
+  - external evidence links for tooling claims stay aligned where applicable,
+  - implemented-state checklist stays aligned across language variants,
+  - roadmap and TODO checklist states stay aligned across language variants,
+  - cross-references point to [AGENTS.md](AGENTS.md) as the governance document,
+  - new-language onboarding remains governed here,
+  - the Golden Ticket indicators section stays synchronized across all language versions,
+  - detection postulates remain technically identical across all language versions.
+- Maintain [README_EQUIVALENCE.md](README_EQUIVALENCE.md) as a concise verification snapshot of parity status, not as the primary home for governance rules.
+
 ## Adding a new README language
 
 When adding a new `README.<lang>.md` file:
@@ -67,7 +87,7 @@ When adding a new `README.<lang>.md` file:
 2. Add the new language file in the same change where the language is introduced.
 3. Keep the same major sections, diagrams, links, and checklist states as the canonical README.
 4. Update cross-references so README files point to [AGENTS.md](AGENTS.md) and the language set remains coherent.
-5. Update [README_EQUIVALENCE.md](README_EQUIVALENCE.md) to include the new language in the compliance checklist.
+5. Update [README_EQUIVALENCE.md](README_EQUIVALENCE.md) to reflect the new tracked language in the verification snapshot.
 6. Verify that the new language does not add or remove technical claims compared with canonical [README.ru.md](README.ru.md).
 
 ## Documentation freshness
