@@ -35,22 +35,38 @@ SID групп (`Domain Admins`, `Enterprise Admins`, `Schema Admins` и т.п.)
 9. Мы видим это в token groups созданной сессии.
 
 ```mermaid
+---
+config:
+  htmlLabels: false
+  markdownAutoWrap: true
+  flowchart:
+    useMaxWidth: false
+    wrappingWidth: 300
+    nodeSpacing: 50
+    rankSpacing: 60
+---
 flowchart TD
-  A[1. Атакующий подделывает TGT и вставляет фейковые группы в PAC] --> B[2. Отправляется TGS-REQ на KDC]
-  B --> C[3. KDC проверяет криптографию TGT]
-  C --> D[4. KDC выдаёт сервисный билет и переносит PAC-данные авторизации из TGT без перестроения членства из AD]
-  D --> E[5. Сервисный билет возвращается атакующему]
-  E --> F[6. TGS предъявляется хосту-жертве]
-  F --> G[7. LSASS проверяет криптографию сервисного билета]
-  G --> H[8. Создаётся токен сессии]
-  H --> I[9. В Token Groups наблюдается поддельное членство]
+  A["`1. Атакующий подделывает TGT и добавляет в PAC фиктивные группы`"]
+    --> B["`2. Отправка TGS-REQ контроллеру домена`"]
 
-  A -. Причинная цепочка: фейковые группы из PAC переходят в Token Groups на хосте-жертве .-> I
+  B --> C["`3. KDC проверяет криптографическую целостность TGT`"]
+
+  C --> D["`4. KDC выдаёт сервисный билет и переносит в него авторизационные данные PAC из TGT, не восстанавливая фактическое членство пользователя в группах Active Directory`"]
+
+  D --> E["`5. Сервисный билет возвращается атакующему`"]
+  E --> F["`6. TGS предъявляется целевому узлу`"]
+  F --> G["`7. LSASS проверяет криптографическую целостность сервисного билета`"]
+  G --> H["`8. Создаётся токен пользовательской сессии`"]
+  H --> I["`9. Token Groups содержат поддельное членство в группах`"]
+
+  A -. "`Причинно-следственная цепочка: поддельные группы из PAC попадают в Token Groups на целевом узле`" .-> I
 
   classDef startNode fill:#d7263d,stroke:#8f1322,color:#ffffff,stroke-width:2px;
   classDef endNode fill:#ff9f1c,stroke:#b86b00,color:#1f1300,stroke-width:2px;
+
   class A startNode;
   class I endNode;
+
   linkStyle 8 stroke:#ff3b30,stroke-width:3px;
 ```
 
@@ -159,8 +175,8 @@ Rubeus (официальные upstream permalink):
 
 Иллюстрация:
 
-- Golden: ![Golden Administrator](Docs/letters/Golden_Administrator.png)
-- Legit: ![Real Administrator](Docs/letters/Real_Administrator.png)
+- Golden: ![Golden Administrator](SlidesAndDocs/Pic/Golden_Administrator.png)
+- Legit: ![Real Administrator](SlidesAndDocs/Pic/Real_Administrator.png)
 
 Почему это возможно:
 
@@ -178,6 +194,16 @@ Rubeus (официальные upstream permalink):
 Важно: для network logon пустой `FullName` сам по себе нормален. Признак здесь именно
 в форме представления (null pointer vs empty string pointer), а не в том, что строка пустая.
 
+Иллюстрация (поле Full name):
+
+- Golden: ![Golden Full name](SlidesAndDocs/Pic/Full_name_is_null.png)
+- Legit: ![Real Full name](SlidesAndDocs/Pic/Full_name_Administrator.png)
+
+Иллюстрация (поле Logon script):
+
+- Golden: ![Golden Logon script](SlidesAndDocs/Pic/Logon_script_is_empty_string.png)
+- Legit: ![Real Logon script](SlidesAndDocs/Pic/Logon_script_is_NULL.png)
+
 Почему это происходит:
 
 - `KERB_VALIDATION_INFO` создаётся через `LocalAlloc(LPTR, ...)`, память обнуляется:
@@ -190,6 +216,13 @@ Rubeus (официальные upstream permalink):
 В трассах golden-билетов часто отсутствует `UPN_DNS_INFO` (type 12), тогда как в легитимном
 пути KDC обычно добавляет этот буфер.
 
+Иллюстрация (структура UPN):
+
+- Golden: ![Golden UPN](SlidesAndDocs/Pic/No_UPN.png)
+- Legit: ![Real UPN](SlidesAndDocs/Pic/UPN_exists.png)
+
+Почему это происходит:
+
 - Типы PAC buffer: [MS-PAC / PAC_INFO_BUFFER](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/3341cfa2-6ef5-42e0-b7bc-4544884bf399)
 - Структура type 12: [MS-PAC / UPN_DNS_INFO](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/1c0d6e11-6443-4846-b744-f9f810a504eb)
 - Генерация PAC в Mimikatz (без type 12):
@@ -199,6 +232,13 @@ Rubeus (официальные upstream permalink):
 
 При генерации golden-билета видно паттерн `MaximumLength = Length + 2` (из-за
 `RtlInitUnicodeString`), тогда как в легитимном PAC часто встречается `MaximumLength = Length`.
+
+Иллюстрация (EffectiveName):
+
+- Golden: ![Golden +1 symbol](SlidesAndDocs/Pic/EffectiveName_and_time_is_bad.png)
+- Legit: ![Real size == length](SlidesAndDocs/Pic/EffectiveName_and_time_is_OK.png)
+
+Почему это происходит:
 
 - Установка имени: [kuhl_m_kerberos_pac.c#L157](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L157)
 - Поле в спецификации: [MS-PAC / EffectiveName](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-pac/69e86ccc-85e3-41b9-b514-7d969cd0ed73)
@@ -210,7 +250,12 @@ Rubeus (официальные upstream permalink):
 - `LogonCount = 0`
 - `PasswordLastSet` выставлен через `KIWI_NEVERTIME` (`MAXLONGLONG`)
 
-Ссылки:
+Иллюстрация (данные прямиком из AD):
+
+- Golden: ![Golden LogonCount + PasswordLastSet](SlidesAndDocs/Pic/LogonCount_and_PwdLastSet_BAD.png)
+- Legit: ![Real LogonCount + PasswordLastSet](SlidesAndDocs/Pic/EffectiveName_and_time_is_OK.png)
+
+Почему это происходит:
 
 - [kuhl_m_kerberos_pac.c#L154](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/mimikatz/modules/kerberos/kuhl_m_kerberos_pac.c#L154)
 - [globals.h#L97 (KIWI_NEVERTIME)](https://github.com/gentilkiwi/mimikatz/blob/306bc6b43099c7b698f2898401fddbded6a630c8/inc/globals.h#L97)

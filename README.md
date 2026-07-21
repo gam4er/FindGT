@@ -34,22 +34,38 @@ In Kerberos terms, trust follows valid cryptography and KDC-issued service ticke
 9. We observe it in the created session's token groups.
 
 ```mermaid
+---
+config:
+  htmlLabels: false
+  markdownAutoWrap: true
+  flowchart:
+    useMaxWidth: false
+    wrappingWidth: 300
+    nodeSpacing: 50
+    rankSpacing: 60
+---
 flowchart TD
-  A[1. Attacker forges TGT + inserts fake PAC groups] --> B[2. TGS-REQ to KDC]
-  B --> C[3. KDC validates TGT cryptography]
-  C --> D[4. KDC issues service ticket and propagates PAC authorization data from TGT without AD membership reconstruction]
-  D --> E[5. Service ticket returned to attacker]
-  E --> F[6. TGS presented to victim host]
-  F --> G[7. LSASS validates service ticket cryptography]
-  G --> H[8. Session token is created]
-  H --> I[9. Token Groups contain forged membership]
+  A["`1. Attacker forges TGT and inserts fake PAC groups`"]
+    --> B["`2. TGS-REQ to KDC`"]
 
-  A -. Causal path: forged PAC groups flow into victim token groups .-> I
+  B --> C["`3. KDC validates TGT cryptography`"]
+
+  C --> D["`4. KDC issues a service ticket and propagates PAC authorization data from the TGT without reconstructing AD group membership`"]
+
+  D --> E["`5. Service ticket returned to attacker`"]
+  E --> F["`6. TGS presented to victim host`"]
+  F --> G["`7. LSASS validates service-ticket cryptography`"]
+  G --> H["`8. Session token is created`"]
+  H --> I["`9. Token Groups contain forged membership`"]
+
+  A -. "`Causal path: forged PAC groups flow into victim token groups`" .-> I
 
   classDef startNode fill:#d7263d,stroke:#8f1322,color:#ffffff,stroke-width:2px;
   classDef endNode fill:#ff9f1c,stroke:#b86b00,color:#1f1300,stroke-width:2px;
+
   class A startNode;
   class I endNode;
+
   linkStyle 8 stroke:#ff3b30,stroke-width:3px;
 ```
 
@@ -156,8 +172,8 @@ For `Domain Admins`, the `Denied RODC Password Replication Group` (RID 572) cont
 
 Illustration:
 
-- Golden: ![Golden Administrator](Docs/letters/Golden_Administrator.png)
-- Legit: ![Real Administrator](Docs/letters/Real_Administrator.png)
+- Golden: ![Golden Administrator](SlidesAndDocs/Pic/Golden_Administrator.png)
+- Legit: ![Real Administrator](SlidesAndDocs/Pic/Real_Administrator.png)
 
 Why this is possible:
 

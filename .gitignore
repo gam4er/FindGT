@@ -365,5 +365,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Local research/reference materials - never commit
 /Docs
+/Docs/Patents/US9866566B2/
+
 README.png
