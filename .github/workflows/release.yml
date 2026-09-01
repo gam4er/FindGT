@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (x.y.z)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  release:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    env:
+      ENABLE_CODE_SIGNING: "false"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/v{0}', inputs.version) || github.ref }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          $version = if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "${{ inputs.version }}"
+          }
+          else {
+            "${{ github.ref_name }}".TrimStart("v")
+          }
+          if ($version -notmatch "^\d+\.\d+\.\d+$") {
+            throw "Release version must be x.y.z."
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "PRODUCT_VERSION=$version" >> $env:GITHUB_ENV
+          $tag = "v$version"
+          $tagCommit = (git rev-list -n 1 $tag).Trim()
+          $headCommit = (git rev-parse HEAD).Trim()
+          if ($tagCommit -ne $headCommit) {
+            throw "Checked-out commit does not match $tag."
+          }
+
+      - name: Build upgrade baseline MSI
+        shell: pwsh
+        run: |
+          .\tools\Build-Release.ps1 -ProductVersion 0.9.0 -SkipTests
+          Copy-Item .\FindGT.Setup\bin\x64\Release\FindGT-0.9.0-x64.msi `
+            (Join-Path $env:RUNNER_TEMP "FindGT-0.9.0-x64.msi")
+
+      - name: Clean release build
+        shell: pwsh
+        run: |
+          .\tools\Build-Release.ps1 `
+            -ProductVersion $env:PRODUCT_VERSION `
+            -SkipTests
+
+      - name: Run unit tests
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -products * -property installationPath
+          $vstest = Join-Path $vs `
+            "Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe"
+          & $vstest .\FindGT.Tests\bin\x64\Release\FindGT.Tests.dll `
+            /Platform:x64 `
+            /Logger:"trx;LogFileName=findgt-tests.trx" `
+            /ResultsDirectory:.\TestResults
+
+      - name: Stage release artifacts
+        shell: pwsh
+        run: |
+          .\tools\Stage-Artifacts.ps1 -ProductVersion $env:PRODUCT_VERSION
+
+      - name: Smoke install and uninstall
+        shell: pwsh
+        run: |
+          .\tools\Smoke-Install.ps1 `
+            -MsiPath ".\artifacts\FindGT-$env:PRODUCT_VERSION-x64.msi" `
+            -InstallLog ".\msi-install.log" `
+            -RepairLog ".\msi-repair.log" `
+            -UninstallLog ".\msi-uninstall.log"
+          .\tools\Smoke-Upgrade.ps1 `
+            -OldMsiPath (Join-Path $env:RUNNER_TEMP "FindGT-0.9.0-x64.msi") `
+            -NewMsiPath ".\artifacts\FindGT-$env:PRODUCT_VERSION-x64.msi" `
+            -OldInstallLog ".\msi-old-install.log" `
+            -UpgradeLog ".\msi-upgrade.log" `
+            -UninstallLog ".\msi-upgrade-uninstall.log"
+          Copy-Item .\TestResults\findgt-tests.trx .\artifacts
+          Copy-Item .\msi-install.log,.\msi-repair.log,.\msi-uninstall.log,`
+            .\msi-old-install.log,.\msi-upgrade.log,`
+            .\msi-upgrade-uninstall.log .\artifacts
+
+      - name: Code signing hook
+        if: env.ENABLE_CODE_SIGNING == 'true'
+        shell: pwsh
+        run: |
+          throw "Configure production certificate-backed signtool invocation before enabling."
+
+      - name: Generate Microsoft SBOM
+        shell: pwsh
+        run: |
+          $tool = Join-Path $env:RUNNER_TEMP "sbom-tool-win-x64.exe"
+          Invoke-WebRequest `
+            "https://github.com/microsoft/sbom-tool/releases/download/v4.1.5/sbom-tool-win-x64.exe" `
+            -OutFile $tool
+          $expected = "625767b371b7fdd58f40f618b8a86da0247a33c89e419039c86b4edba1dad4b5"
+          $actual = (Get-FileHash $tool -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actual -ne $expected) {
+            throw "Microsoft SBOM tool checksum mismatch."
+          }
+          & $tool generate `
+            -b .\artifacts `
+            -bc . `
+            -pn FindGT `
+            -pv $env:PRODUCT_VERSION `
+            -ps "Родченко Александр" `
+            -nsb "https://github.com/gam4er/FindGT" `
+            -V Information
+          $manifest = Get-ChildItem .\artifacts\_manifest -Recurse `
+            -Filter manifest.spdx.json | Select-Object -First 1
+          Copy-Item $manifest.FullName `
+            ".\artifacts\FindGT-$env:PRODUCT_VERSION.spdx.json"
+          Remove-Item .\artifacts\_manifest -Recurse -Force
+          .\tools\Write-Checksums.ps1
+
+      - name: Attest release artifacts
+        uses: actions/attest@v4
+        with:
+          subject-checksums: artifacts/SHA256SUMS.txt
+
+      - name: Upload release workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: FindGT-${{ steps.version.outputs.version }}-release
+          path: artifacts
+          if-no-files-found: error
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $tag = "v${{ steps.version.outputs.version }}"
+          gh release create $tag .\artifacts\* `
+            --verify-tag `
+            --title "FindGT ${{ steps.version.outputs.version }}" `
+            --generate-notes `
+            --notes "Artifacts are unsigned; verify SHA256SUMS.txt and the GitHub attestation."

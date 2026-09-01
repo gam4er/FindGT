@@ -1,0 +1,58 @@
+name: Lab integration
+
+on:
+  workflow_dispatch:
+    inputs:
+      victim:
+        description: Victim FQDN or IP
+        required: true
+        type: string
+      action:
+        description: Authorized lab phase
+        required: true
+        type: choice
+        options:
+          - preflight
+          - deploy
+          - collect
+          - uninstall
+
+permissions:
+  contents: read
+
+jobs:
+  lab:
+    runs-on: [self-hosted, windows, x64, findgt-lab]
+    environment: findgt-lab
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Build unsigned lab MSI
+        if: inputs.action == 'deploy'
+        shell: pwsh
+        run: |
+          .\tools\Build-Release.ps1 -ProductVersion 1.0.0 -SkipTests
+
+      - name: Run authorized lab phase
+        shell: pwsh
+        env:
+          FINDGT_LAB_USERNAME: ${{ secrets.FINDGT_LAB_USERNAME }}
+          FINDGT_LAB_PASSWORD: ${{ secrets.FINDGT_LAB_PASSWORD }}
+        run: |
+          .\tools\Invoke-LabValidation.ps1 `
+            -Action "${{ inputs.action }}" `
+            -Victim "${{ inputs.victim }}" `
+            -MsiPath ".\FindGT.Setup\bin\x64\Release\FindGT-1.0.0-x64.msi" `
+            -EvidenceDirectory ".\lab-evidence"
+
+      - name: Upload sanitized evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: FindGT-lab-${{ inputs.action }}-${{ github.run_id }}
+          path: lab-evidence
+          if-no-files-found: warn
+          retention-days: 7

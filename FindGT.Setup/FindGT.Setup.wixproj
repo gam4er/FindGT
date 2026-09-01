@@ -1,0 +1,64 @@
+<Project Sdk="WixToolset.Sdk/7.0.0">
+  <PropertyGroup>
+    <AcceptEula>wix7</AcceptEula>
+    <OutputType>Package</OutputType>
+    <InstallerPlatform>x64</InstallerPlatform>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <Platforms>x64</Platforms>
+    <ProductVersion Condition="'$(ProductVersion)' == ''">1.0.0</ProductVersion>
+    <OutputName>FindGT-$(ProductVersion)-x64</OutputName>
+    <OutputPath>bin\$(Platform)\$(Configuration)\</OutputPath>
+    <IntermediateOutputPath>obj\$(Platform)\$(Configuration)\</IntermediateOutputPath>
+    <SuppressValidation>false</SuppressValidation>
+    <SuppressSpecificWarnings>1149</SuppressSpecificWarnings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <DefineConstants>
+      $(DefineConstants);
+      ProductVersion=$(ProductVersion);
+      UpgradeCode={5E19CAD0-9883-4715-8D04-7B562E5E7BEF}
+    </DefineConstants>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="WixToolset.Util.wixext" Version="7.0.0" />
+    <PackageReference Include="WixToolset.UI.wixext" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FindGT\FindGT.csproj" />
+    <ProjectReference Include="..\FindGT.Core\FindGT.Core.csproj" />
+    <ProjectReference Include="..\FindGT.Eventing\FindGT.Eventing.csproj" />
+    <ProjectReference Include="..\FindGT.Service\FindGT.Service.csproj" />
+    <ProjectReference Include="..\FindGT.EventMessages\FindGT.EventMessages.vcxproj" />
+    <ProjectReference Include="..\FindGT.SetupActions\FindGT.SetupActions.vcxproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <BindPath Include="$(MSBuildThisFileDirectory)..\FindGT\bin\x64\$(Configuration)">
+      <BindName>Cli</BindName>
+    </BindPath>
+    <BindPath Include="$(MSBuildThisFileDirectory)..\FindGT.Service\bin\x64\$(Configuration)">
+      <BindName>Service</BindName>
+    </BindPath>
+    <BindPath Include="$(MSBuildThisFileDirectory)..\FindGT.EventMessages\bin\x64\$(Configuration)">
+      <BindName>EventMessages</BindName>
+    </BindPath>
+    <BindPath Include="$(MSBuildThisFileDirectory)..\FindGT.SetupActions\bin\x64\$(Configuration)">
+      <BindName>SetupActions</BindName>
+    </BindPath>
+    <BindPath Include="$(MSBuildThisFileDirectory)..">
+      <BindName>Repository</BindName>
+    </BindPath>
+  </ItemGroup>
+
+  <Target Name="VerifyFunctionalPayload" BeforeTargets="CoreCompile">
+    <Error Condition="!Exists('..\FindGT\bin\x64\$(Configuration)\FindGT.exe')"
+           Text="FindGT CLI payload is missing. Build Release|x64 before packaging." />
+    <Error Condition="!Exists('..\FindGT.Service\bin\x64\$(Configuration)\FindGT.Service.exe')"
+           Text="FindGT service payload is missing. Build Release|x64 before packaging." />
+    <Error Condition="!Exists('..\FindGT.EventMessages\bin\x64\$(Configuration)\FindGT.EventMessages.dll')"
+           Text="FindGT event message resources are missing." />
+    <Error Condition="!Exists('..\FindGT.SetupActions\bin\x64\$(Configuration)\FindGT.SetupActions.dll')"
+           Text="FindGT setup actions are missing." />
+  </Target>
+</Project>

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using FindGT.Core;
 using FindGT.Membership;
 
 namespace FindGT.Reporting
@@ -19,17 +20,31 @@ namespace FindGT.Reporting
         public int ReferenceDomainGroupCount;
 
         public List<DiffRow> Rows = new List<DiffRow>();
+        public AnalysisVerdict Verdict;
+        public AnalysisReason Reason;
+        public List<string> RuleIds = new List<string>();
 
         /// <summary>True if any suspicious (in-session-not-in-reference) rows exist.</summary>
         public bool HasSuspicious
         {
             get
             {
-                foreach (var r in Rows)
-                    if (r.Kind == DiffKind.InSessionNotInReference)
-                        return true;
-                return false;
+                return Verdict == AnalysisVerdict.Suspicious;
             }
+        }
+
+        public bool IsUnknown
+        {
+            get
+            {
+                return Verdict == AnalysisVerdict.Unknown ||
+                    Verdict == AnalysisVerdict.Error;
+            }
+        }
+
+        public bool IsNotEvaluated
+        {
+            get { return Verdict == AnalysisVerdict.NotEvaluated; }
         }
     }
 }

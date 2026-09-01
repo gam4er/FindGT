@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props"
+          Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Debug</Configuration>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <ProjectGuid>{E922EF3C-B411-45C0-BC6B-4B00946C5C0D}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <RootNamespace>FindGT</RootNamespace>
+    <AssemblyName>FindGT.Core</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\x64\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\x64\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <WarningLevel>4</WarningLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>7.3</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.DirectoryServices" />
+    <Reference Include="System.DirectoryServices.AccountManagement" />
+    <Reference Include="System.Security" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Analysis\AnalysisAbstractions.cs" />
+    <Compile Include="Analysis\AnalysisOptions.cs" />
+    <Compile Include="Analysis\BootInstanceIdProvider.cs" />
+    <Compile Include="Analysis\LocalMachineSidResolver.cs" />
+    <Compile Include="Analysis\NativeSessionDataSource.cs" />
+    <Compile Include="Analysis\ReferenceMembershipResolver.cs" />
+    <Compile Include="Analysis\RuntimeIdentity.cs" />
+    <Compile Include="Analysis\SessionAnalyzer.cs" />
+    <Compile Include="Creds.cs" />
+    <Compile Include="Find.cs" />
+    <Compile Include="Interop.cs" />
+    <Compile Include="LUID.cs" />
+    <Compile Include="Membership\LdapMembershipProvider.cs" />
+    <Compile Include="Membership\MembershipComparer.cs" />
+    <Compile Include="Membership\MembershipModels.cs" />
+    <Compile Include="Membership\S4UMembershipProvider.cs" />
+    <Compile Include="Membership\SidUtil.cs" />
+    <Compile Include="NativeCallException.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Rules\PowerfulSessionClassifier.cs" />
+    <Compile Include="Rules\RuleEngine.cs" />
+    <Compile Include="S4U.cs" />
+    <Compile Include="SafeHandles.cs" />
+    <Compile Include="SecBuffer.cs" />
+    <Compile Include="SecBufferDesc.cs" />
+    <Compile Include="TokenInspector.cs" />
+    <Compile Include="Models\AnalysisModels.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

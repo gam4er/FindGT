@@ -1,0 +1,571 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix
+  xmlns="http://wixtoolset.org/schemas/v4/wxs"
+  xmlns:util="http://wixtoolset.org/schemas/v4/wxs/util"
+  xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package
+    Name="FindGT"
+    Manufacturer="Родченко Александр"
+    Version="$(var.ProductVersion)"
+    Language="1049"
+    Codepage="65001"
+    UpgradeCode="$(var.UpgradeCode)"
+    Scope="perMachine"
+    InstallerVersion="500">
+
+    <SummaryInformation
+      Description="FindGT Golden Ticket Session Monitor"
+      Manufacturer="Alexander Rodchenko" />
+    <MajorUpgrade
+      Schedule="afterInstallInitialize"
+      DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Property Id="NETFRAMEWORK48FULL">
+      <RegistrySearch
+        Id="NetFramework48Release"
+        Root="HKLM"
+        Key="SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full"
+        Name="Release"
+        Type="raw"
+        Bitness="always64" />
+    </Property>
+    <Launch
+      Condition="Installed OR Privileged"
+      Message="FindGT requires administrative privileges for a per-machine installation." />
+    <Launch
+      Condition="Installed OR NETFRAMEWORK48FULL &gt;= 528040"
+      Message="FindGT requires Microsoft .NET Framework 4.8 or later." />
+
+    <Property Id="START_SERVICE" Value="1" Secure="yes" />
+    <Property Id="ANALYZE_EXISTING_SESSIONS" Value="1" Secure="yes" />
+    <Property Id="ENABLE_OPERATIONAL_SINK" Value="1" Secure="yes" />
+    <Property Id="SECURITY_SINK_MODE" Value="SuspiciousOnly" Secure="yes" />
+    <Property Id="ENABLE_JSON_SINK" Value="0" Secure="yes" />
+    <Property Id="POWERFUL_ONLY" Value="0" Secure="yes" />
+    <Property Id="PRESERVE_CONFIG_ON_UNINSTALL" Value="1" Secure="yes" />
+    <Property Id="PRESERVE_STATE_ON_UNINSTALL" Value="1" Secure="yes" />
+    <Property Id="WRITE_SECURITY_SUMMARY" Value="1" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <Launch
+      Condition="START_SERVICE = &quot;0&quot; OR START_SERVICE = &quot;1&quot;"
+      Message="START_SERVICE must be 0 or 1." />
+    <Launch
+      Condition="ANALYZE_EXISTING_SESSIONS = &quot;0&quot; OR ANALYZE_EXISTING_SESSIONS = &quot;1&quot;"
+      Message="ANALYZE_EXISTING_SESSIONS must be 0 or 1." />
+    <Launch
+      Condition="ENABLE_OPERATIONAL_SINK = &quot;0&quot; OR ENABLE_OPERATIONAL_SINK = &quot;1&quot;"
+      Message="ENABLE_OPERATIONAL_SINK must be 0 or 1." />
+    <Launch
+      Condition="ENABLE_JSON_SINK = &quot;0&quot; OR ENABLE_JSON_SINK = &quot;1&quot;"
+      Message="ENABLE_JSON_SINK must be 0 or 1." />
+    <Launch
+      Condition="POWERFUL_ONLY = &quot;0&quot; OR POWERFUL_ONLY = &quot;1&quot;"
+      Message="POWERFUL_ONLY must be 0 or 1." />
+    <Launch
+      Condition="PRESERVE_CONFIG_ON_UNINSTALL = &quot;0&quot; OR PRESERVE_CONFIG_ON_UNINSTALL = &quot;1&quot;"
+      Message="PRESERVE_CONFIG_ON_UNINSTALL must be 0 or 1." />
+    <Launch
+      Condition="PRESERVE_STATE_ON_UNINSTALL = &quot;0&quot; OR PRESERVE_STATE_ON_UNINSTALL = &quot;1&quot;"
+      Message="PRESERVE_STATE_ON_UNINSTALL must be 0 or 1." />
+    <Launch
+      Condition="SECURITY_SINK_MODE = &quot;Off&quot; OR SECURITY_SINK_MODE = &quot;SuspiciousOnly&quot; OR SECURITY_SINK_MODE = &quot;All&quot;"
+      Message="SECURITY_SINK_MODE must be Off, SuspiciousOnly, or All." />
+    <Launch
+      Condition="ENABLE_OPERATIONAL_SINK = &quot;1&quot; OR ENABLE_JSON_SINK = &quot;1&quot;"
+      Message="At least one full-result sink must be enabled." />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="FindGT">
+        <Directory Id="DOCSFOLDER" Name="Docs" />
+      </Directory>
+    </StandardDirectory>
+    <StandardDirectory Id="CommonAppDataFolder">
+      <Directory Id="PROGRAMDATAFOLDER" Name="FindGT">
+        <Directory Id="CONFIGFOLDER" Name="Config" />
+        <Directory Id="STATEFOLDER" Name="State" />
+        <Directory Id="LOGSFOLDER" Name="Logs" />
+      </Directory>
+    </StandardDirectory>
+
+    <Component Id="ServiceExecutableComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File
+        Id="ServiceExecutable"
+        Source="!(bindpath.Service)\FindGT.Service.exe"
+        KeyPath="yes" />
+      <File Source="!(bindpath.Service)\FindGT.Service.exe.config" />
+      <ServiceInstall
+        Id="FindGTServiceInstall"
+        Type="ownProcess"
+        Name="FindGT"
+        DisplayName="FindGT Golden Ticket Session Monitor"
+        Description="Monitors Kerberos logon sessions for authorization-context inconsistencies."
+        Start="auto"
+        ErrorControl="normal"
+        Account="LocalSystem"
+        Vital="yes">
+        <ServiceConfig
+          DelayedAutoStart="yes"
+          OnInstall="yes"
+          OnReinstall="yes" />
+      </ServiceInstall>
+      <ServiceControl
+        Id="FindGTServiceControl"
+        Name="FindGT"
+        Stop="both"
+        Remove="uninstall"
+        Wait="yes" />
+    </Component>
+
+    <Component Id="CoreLibraryComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Id="CoreLibrary" Source="!(bindpath.Service)\FindGT.Core.dll" KeyPath="yes" />
+    </Component>
+    <Component Id="EventingLibraryComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Id="EventingLibrary" Source="!(bindpath.Service)\FindGT.Eventing.dll" KeyPath="yes" />
+    </Component>
+
+    <Component Id="CliComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Id="CliExecutable" Source="!(bindpath.Cli)\FindGT.exe" KeyPath="yes" />
+      <File Source="!(bindpath.Cli)\FindGT.exe.config" />
+    </Component>
+    <Component Id="SpectreConsoleComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Source="!(bindpath.Cli)\Spectre.Console.dll" KeyPath="yes" />
+    </Component>
+    <Component Id="SpectreConsoleCliComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Source="!(bindpath.Cli)\Spectre.Console.Cli.dll" KeyPath="yes" />
+    </Component>
+    <Component Id="SystemBuffersComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Source="!(bindpath.Cli)\System.Buffers.dll" KeyPath="yes" />
+    </Component>
+    <Component Id="FileSystemAccessControlComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Source="!(bindpath.Cli)\System.IO.FileSystem.AccessControl.dll" KeyPath="yes" />
+    </Component>
+    <Component Id="SystemMemoryComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Source="!(bindpath.Cli)\System.Memory.dll" KeyPath="yes" />
+    </Component>
+    <Component Id="NumericsVectorsComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Source="!(bindpath.Cli)\System.Numerics.Vectors.dll" KeyPath="yes" />
+    </Component>
+    <Component Id="CompilerServicesUnsafeComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Source="!(bindpath.Cli)\System.Runtime.CompilerServices.Unsafe.dll" KeyPath="yes" />
+    </Component>
+    <Component Id="SecurityAccessControlComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Source="!(bindpath.Cli)\System.Security.AccessControl.dll" KeyPath="yes" />
+    </Component>
+    <Component Id="SecurityPermissionsComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Source="!(bindpath.Cli)\System.Security.Permissions.dll" KeyPath="yes" />
+    </Component>
+    <Component Id="SecurityPrincipalWindowsComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File Source="!(bindpath.Cli)\System.Security.Principal.Windows.dll" KeyPath="yes" />
+    </Component>
+
+    <Component Id="EventMessagesComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File
+        Id="EventMessagesFile"
+        Source="!(bindpath.EventMessages)\FindGT.EventMessages.dll"
+        KeyPath="yes" />
+    </Component>
+    <Component Id="SecurityMessagesComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File
+        Id="SecurityMessagesFile"
+        Source="!(bindpath.EventMessages)\FindGT.SecurityMessages.dll"
+        KeyPath="yes" />
+    </Component>
+    <Component Id="EventManifestComponent" Directory="INSTALLFOLDER" Guid="*">
+      <File
+        Id="EventManifestFile"
+        Source="!(bindpath.EventMessages)\FindGT.man"
+        KeyPath="yes">
+        <util:EventManifest
+          MessageFile="[#EventMessagesFile]"
+          ResourceFile="[#EventMessagesFile]" />
+      </File>
+    </Component>
+
+    <Component Id="LicenseComponent" Directory="DOCSFOLDER" Guid="*">
+      <File Id="LicenseFile" Source="!(bindpath.Repository)\LICENSE.txt" KeyPath="yes" />
+    </Component>
+    <Component Id="RussianReadmeComponent" Directory="DOCSFOLDER" Guid="*">
+      <File Source="!(bindpath.Repository)\README.ru.md" KeyPath="yes" />
+    </Component>
+    <Component Id="EnglishReadmeComponent" Directory="DOCSFOLDER" Guid="*">
+      <File Source="!(bindpath.Repository)\README.md" KeyPath="yes" />
+    </Component>
+    <Component Id="GreekReadmeComponent" Directory="DOCSFOLDER" Guid="*">
+      <File Source="!(bindpath.Repository)\README.el.md" KeyPath="yes" />
+    </Component>
+
+    <Component
+      Id="DefaultConfigurationComponent"
+      Directory="CONFIGFOLDER"
+      Guid="*"
+      Permanent="yes"
+      NeverOverwrite="yes">
+      <File
+        Id="DefaultConfigurationFile"
+        Source="!(bindpath.Service)\FindGT.settings.json"
+        Name="FindGT.settings.json"
+        KeyPath="yes" />
+    </Component>
+
+    <Component Id="ProgramDataAclComponent" Directory="PROGRAMDATAFOLDER" Guid="*">
+      <CreateFolder />
+      <RegistryValue
+        Root="HKLM"
+        Key="Software\FindGT"
+        Name="ProgramData"
+        Type="string"
+        Value="[PROGRAMDATAFOLDER]"
+        KeyPath="yes" />
+    </Component>
+    <Component Id="StateFolderComponent" Directory="STATEFOLDER" Guid="*">
+      <CreateFolder />
+      <RegistryValue
+        Root="HKLM"
+        Key="Software\FindGT"
+        Name="StateDirectory"
+        Type="string"
+        Value="[STATEFOLDER]"
+        KeyPath="yes" />
+    </Component>
+    <Component Id="LogsFolderComponent" Directory="LOGSFOLDER" Guid="*">
+      <CreateFolder />
+      <RegistryValue
+        Root="HKLM"
+        Key="Software\FindGT"
+        Name="LogsDirectory"
+        Type="string"
+        Value="[LOGSFOLDER]"
+        KeyPath="yes" />
+    </Component>
+
+    <Component
+      Id="StartServiceComponent"
+      Directory="INSTALLFOLDER"
+      Guid="*"
+      Condition="START_SERVICE = &quot;1&quot;">
+      <RegistryValue
+        Root="HKLM"
+        Key="Software\FindGT"
+        Name="StartAfterInstall"
+        Type="integer"
+        Value="1"
+        KeyPath="yes" />
+      <ServiceControl
+        Id="StartFindGTService"
+        Name="FindGT"
+        Start="install"
+        Wait="yes" />
+    </Component>
+
+    <Binary
+      Id="FindGTSetupActions"
+      SourceFile="!(bindpath.SetupActions)\FindGT.SetupActions.dll" />
+    <CustomAction
+      Id="SetSecureProgramDataData"
+      Property="SecureProgramData"
+      Value="[PROGRAMDATAFOLDER]" />
+    <CustomAction
+      Id="SecureProgramData"
+      BinaryRef="FindGTSetupActions"
+      DllEntry="SecureProgramData"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check" />
+    <CustomAction
+      Id="SetInstallAuthzData"
+      Property="InstallAuthzSource"
+      Value="[INSTALLFOLDER]FindGT.SecurityMessages.dll|[INSTALLFOLDER]FindGT.Service.exe" />
+    <CustomAction
+      Id="InstallAuthzSource"
+      BinaryRef="FindGTSetupActions"
+      DllEntry="InstallAuthzSource"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check" />
+    <CustomAction
+      Id="RollbackInstallAuthzSource"
+      BinaryRef="FindGTSetupActions"
+      DllEntry="RollbackInstallAuthzSource"
+      Execute="rollback"
+      Impersonate="no"
+      Return="check" />
+    <CustomAction
+      Id="SetRollbackUninstallAuthzData"
+      Property="RollbackUninstallAuthzSource"
+      Value="[INSTALLFOLDER]FindGT.SecurityMessages.dll|[INSTALLFOLDER]FindGT.Service.exe" />
+    <CustomAction
+      Id="RollbackUninstallAuthzSource"
+      BinaryRef="FindGTSetupActions"
+      DllEntry="RollbackUninstallAuthzSource"
+      Execute="rollback"
+      Impersonate="no"
+      Return="check" />
+    <CustomAction
+      Id="UninstallAuthzSource"
+      BinaryRef="FindGTSetupActions"
+      DllEntry="UninstallAuthzSource"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check" />
+    <CustomAction
+      Id="ConfigureServiceRecovery"
+      BinaryRef="FindGTSetupActions"
+      DllEntry="ConfigureServiceRecovery"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check" />
+    <CustomAction
+      Id="SetWriteInitialConfigurationData"
+      Property="WriteInitialConfiguration"
+      Value="[CONFIGFOLDER]FindGT.settings.json|[ANALYZE_EXISTING_SESSIONS]|[ENABLE_OPERATIONAL_SINK]|[SECURITY_SINK_MODE]|[ENABLE_JSON_SINK]|[POWERFUL_ONLY]" />
+    <CustomAction
+      Id="WriteInitialConfiguration"
+      BinaryRef="FindGTSetupActions"
+      DllEntry="WriteInitialConfiguration"
+      Execute="deferred"
+      Impersonate="no"
+      Return="check" />
+    <CustomAction
+      Id="SetCleanupDataData"
+      Property="CleanupData"
+      Value="[PROGRAMDATAFOLDER]|[PRESERVE_CONFIG_ON_UNINSTALL]|[PRESERVE_STATE_ON_UNINSTALL]" />
+    <CustomAction
+      Id="CleanupData"
+      BinaryRef="FindGTSetupActions"
+      DllEntry="CleanupData"
+      Execute="commit"
+      Impersonate="no"
+      Return="check" />
+
+    <InstallExecuteSequence>
+      <Custom
+        Action="SetSecureProgramDataData"
+        After="CreateFolders"
+        Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom
+        Action="SecureProgramData"
+        After="SetSecureProgramDataData"
+        Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom
+        Action="SetInstallAuthzData"
+        After="InstallFiles"
+        Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom
+        Action="SetWriteInitialConfigurationData"
+        After="InstallFiles"
+        Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+      <Custom
+        Action="WriteInitialConfiguration"
+        After="SetWriteInitialConfigurationData"
+        Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+      <Custom
+        Action="RollbackInstallAuthzSource"
+        After="SetInstallAuthzData"
+        Condition="NOT Installed AND NOT WIX_UPGRADE_DETECTED" />
+      <Custom
+        Action="InstallAuthzSource"
+        After="RollbackInstallAuthzSource"
+        Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom
+        Action="ConfigureServiceRecovery"
+        Before="StartServices"
+        Condition="NOT REMOVE~=&quot;ALL&quot;" />
+      <Custom
+        Action="SetRollbackUninstallAuthzData"
+        Before="RollbackUninstallAuthzSource"
+        Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom
+        Action="RollbackUninstallAuthzSource"
+        Before="UninstallAuthzSource"
+        Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom
+        Action="UninstallAuthzSource"
+        Before="RemoveFiles"
+        Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE" />
+      <Custom
+        Action="SetCleanupDataData"
+        Before="CleanupData"
+        Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE AND (PRESERVE_CONFIG_ON_UNINSTALL = &quot;0&quot; OR PRESERVE_STATE_ON_UNINSTALL = &quot;0&quot;)" />
+      <Custom
+        Action="CleanupData"
+        Before="InstallFinalize"
+        Condition="REMOVE~=&quot;ALL&quot; AND NOT UPGRADINGPRODUCTCODE AND (PRESERVE_CONFIG_ON_UNINSTALL = &quot;0&quot; OR PRESERVE_STATE_ON_UNINSTALL = &quot;0&quot;)" />
+    </InstallExecuteSequence>
+
+    <UI>
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+
+      <DialogRef Id="BrowseDlg" />
+      <DialogRef Id="DiskCostDlg" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="ExitDialog" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="InstallDirDlg" />
+      <DialogRef Id="MaintenanceTypeDlg" />
+      <DialogRef Id="MaintenanceWelcomeDlg" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+      <DialogRef Id="VerifyReadyDlg" />
+      <DialogRef Id="WelcomeDlg" />
+
+      <Dialog
+        Id="FindGTOptionsDlg"
+        Width="370"
+        Height="270"
+        Title="[ProductName] Setup">
+        <Control
+          Id="Title"
+          Type="Text"
+          X="15"
+          Y="6"
+          Width="340"
+          Height="25"
+          Transparent="yes"
+          NoPrefix="yes"
+          Text="{\WixUI_Font_Title}FindGT service options" />
+        <Control
+          Id="Description"
+          Type="Text"
+          X="20"
+          Y="35"
+          Width="330"
+          Height="20"
+          Text="Choose the initial service configuration. It can be changed later in ProgramData." />
+        <Control Id="StartService" Type="CheckBox" X="25" Y="65" Width="320" Height="17"
+                 Property="START_SERVICE" CheckBoxValue="1"
+                 Text="Start FindGT service after installation" />
+        <Control Id="AnalyzeExisting" Type="CheckBox" X="25" Y="87" Width="320" Height="17"
+                 Property="ANALYZE_EXISTING_SESSIONS" CheckBoxValue="1"
+                 Text="Analyze existing sessions on first start" />
+        <Control Id="SecuritySummary" Type="CheckBox" X="25" Y="109" Width="320" Height="17"
+                 Property="WRITE_SECURITY_SUMMARY" CheckBoxValue="1"
+                 Text="Write suspicious findings to Security" />
+        <Control Id="JsonOutput" Type="CheckBox" X="25" Y="131" Width="320" Height="17"
+                 Property="ENABLE_JSON_SINK" CheckBoxValue="1"
+                 Text="Enable protected local JSON output" />
+        <Control Id="PowerfulOnly" Type="CheckBox" X="25" Y="153" Width="320" Height="17"
+                 Property="POWERFUL_ONLY" CheckBoxValue="1"
+                 Text="Analyze only powerful sessions" />
+        <Control Id="PreserveConfig" Type="CheckBox" X="25" Y="175" Width="320" Height="17"
+                 Property="PRESERVE_CONFIG_ON_UNINSTALL" CheckBoxValue="1"
+                 Text="Preserve configuration during uninstall" />
+        <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
+        <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17"
+                 Text="&amp;Back">
+          <Publish Event="NewDialog" Value="InstallDirDlg" />
+        </Control>
+        <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17"
+                 Default="yes" Text="&amp;Next">
+          <Publish Property="START_SERVICE" Value="0"
+                   Order="1" Condition="START_SERVICE &lt;&gt; &quot;1&quot;" />
+          <Publish Property="ANALYZE_EXISTING_SESSIONS" Value="0"
+                   Order="2" Condition="ANALYZE_EXISTING_SESSIONS &lt;&gt; &quot;1&quot;" />
+          <Publish Property="ENABLE_JSON_SINK" Value="0"
+                   Order="3" Condition="ENABLE_JSON_SINK &lt;&gt; &quot;1&quot;" />
+          <Publish Property="POWERFUL_ONLY" Value="0"
+                   Order="4" Condition="POWERFUL_ONLY &lt;&gt; &quot;1&quot;" />
+          <Publish Property="PRESERVE_CONFIG_ON_UNINSTALL" Value="0"
+                   Order="5" Condition="PRESERVE_CONFIG_ON_UNINSTALL &lt;&gt; &quot;1&quot;" />
+          <Publish Property="SECURITY_SINK_MODE" Value="SuspiciousOnly"
+                   Order="6" Condition="WRITE_SECURITY_SUMMARY = &quot;1&quot;" />
+          <Publish Property="SECURITY_SINK_MODE" Value="Off"
+                   Order="7" Condition="WRITE_SECURITY_SUMMARY &lt;&gt; &quot;1&quot;" />
+          <Publish Event="NewDialog" Value="VerifyReadyDlg" Order="8" />
+        </Control>
+        <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17"
+                 Cancel="yes" Text="Cancel">
+          <Publish Event="SpawnDialog" Value="CancelDlg" />
+        </Control>
+      </Dialog>
+
+      <Publish Dialog="ExitDialog" Control="Finish"
+               Event="EndDialog" Value="Return" Order="999" />
+      <Publish Dialog="WelcomeDlg" Control="Next"
+               Event="NewDialog" Value="InstallDirDlg"
+               Condition="NOT Installed" />
+      <Publish Dialog="WelcomeDlg" Control="Next"
+               Event="NewDialog" Value="VerifyReadyDlg"
+               Condition="Installed AND PATCH" />
+      <Publish Dialog="InstallDirDlg" Control="Back"
+               Event="NewDialog" Value="WelcomeDlg"
+               Condition="NOT Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Back"
+               Event="NewDialog" Value="MaintenanceTypeDlg"
+               Condition="Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Next"
+               Event="CheckTargetPath" Value="[WIXUI_INSTALLDIR]" Order="1" />
+      <Publish Dialog="InstallDirDlg" Control="Next"
+               Event="SetTargetPath" Value="[WIXUI_INSTALLDIR]" Order="3" />
+      <Publish Dialog="InstallDirDlg" Control="Next"
+               Event="NewDialog" Value="FindGTOptionsDlg" Order="4"
+               Condition="NOT Installed" />
+      <Publish Dialog="InstallDirDlg" Control="Next"
+               Event="NewDialog" Value="VerifyReadyDlg" Order="4"
+               Condition="Installed" />
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder"
+               Property="_BrowseProperty" Value="[WIXUI_INSTALLDIR]" Order="1" />
+      <Publish Dialog="InstallDirDlg" Control="ChangeFolder"
+               Event="SpawnDialog" Value="BrowseDlg" Order="2" />
+      <Publish Dialog="BrowseDlg" Control="OK"
+               Event="SetTargetPath" Value="[_BrowseProperty]" Order="3" />
+      <Publish Dialog="BrowseDlg" Control="OK"
+               Event="EndDialog" Value="Return" Order="4" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back"
+               Event="NewDialog" Value="FindGTOptionsDlg" Order="1"
+               Condition="NOT Installed" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back"
+               Event="NewDialog" Value="MaintenanceTypeDlg" Order="2"
+               Condition="Installed AND NOT PATCH" />
+      <Publish Dialog="VerifyReadyDlg" Control="Back"
+               Event="NewDialog" Value="WelcomeDlg" Order="2"
+               Condition="Installed AND PATCH" />
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next"
+               Event="NewDialog" Value="MaintenanceTypeDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton"
+               Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton"
+               Event="NewDialog" Value="VerifyReadyDlg" />
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back"
+               Event="NewDialog" Value="MaintenanceWelcomeDlg" />
+    </UI>
+    <UIRef Id="WixUI_Common" />
+
+    <Feature Id="ProductFeature" Title="FindGT" Level="1">
+      <ComponentRef Id="ServiceExecutableComponent" />
+      <ComponentRef Id="CoreLibraryComponent" />
+      <ComponentRef Id="EventingLibraryComponent" />
+      <ComponentRef Id="CliComponent" />
+      <ComponentRef Id="SpectreConsoleComponent" />
+      <ComponentRef Id="SpectreConsoleCliComponent" />
+      <ComponentRef Id="SystemBuffersComponent" />
+      <ComponentRef Id="FileSystemAccessControlComponent" />
+      <ComponentRef Id="SystemMemoryComponent" />
+      <ComponentRef Id="NumericsVectorsComponent" />
+      <ComponentRef Id="CompilerServicesUnsafeComponent" />
+      <ComponentRef Id="SecurityAccessControlComponent" />
+      <ComponentRef Id="SecurityPermissionsComponent" />
+      <ComponentRef Id="SecurityPrincipalWindowsComponent" />
+      <ComponentRef Id="EventMessagesComponent" />
+      <ComponentRef Id="SecurityMessagesComponent" />
+      <ComponentRef Id="EventManifestComponent" />
+      <ComponentRef Id="LicenseComponent" />
+      <ComponentRef Id="RussianReadmeComponent" />
+      <ComponentRef Id="EnglishReadmeComponent" />
+      <ComponentRef Id="GreekReadmeComponent" />
+      <ComponentRef Id="DefaultConfigurationComponent" />
+      <ComponentRef Id="ProgramDataAclComponent" />
+      <ComponentRef Id="StateFolderComponent" />
+      <ComponentRef Id="LogsFolderComponent" />
+      <ComponentRef Id="StartServiceComponent" />
+    </Feature>
+  </Package>
+</Wix>

@@ -1,0 +1,35 @@
+{
+  "SchemaVersion": 1,
+  "EnabledLogonTypes": [3, 10],
+  "AnalyzeExistingSessionsOnStart": true,
+  "ReconciliationIntervalSeconds": 60,
+  "Queue": {
+    "Capacity": 1024,
+    "WorkerCount": 1
+  },
+  "RetryDelaysMilliseconds": [0, 250, 1000, 3000, 10000],
+  "PowerfulOnly": {
+    "Enabled": false,
+    "PrivilegedUserRids": [500],
+    "PrivilegedGroupRids": [512, 518, 519],
+    "ExactSids": ["S-1-5-32-544"],
+    "AdditionalSids": []
+  },
+  "Output": {
+    "OperationalEventLog": {
+      "Enabled": true
+    },
+    "SecurityEventLog": {
+      "Mode": "SuspiciousOnly"
+    },
+    "Json": {
+      "Enabled": false,
+      "Directory": "%ProgramData%\\FindGT\\Logs"
+    }
+  },
+  "Exclusions": {
+    "UserSids": [],
+    "AccountNames": [],
+    "Domains": []
+  }
+}

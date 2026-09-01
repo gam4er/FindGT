@@ -17,7 +17,10 @@ SID ομάδων (π.χ. `Domain Admins`, `Enterprise Admins`, `Schema Admins`).
 φαίνονται στο token του session αλλά **όχι** στην authoritative πηγή — αυτό ακριβώς επισημαίνει
 το FindGT.
 
-> Ερευνητικό / PoC εργαλείο. Μεγάλο μέρος του κώδικα token/session βασίζεται στο
+> Κατάσταση: η production-oriented υλοποίηση υπηρεσίας και MSI είναι έτοιμη για
+> εργαστηριακή επαλήθευση· η end-to-end επιβεβαίωση με πραγματικό Golden Ticket
+> δεν έχει ακόμη ολοκληρωθεί. Τα ερευνητικά CLI commands παραμένουν ξεχωριστά.
+> Μέρος του αρχικού token/session κώδικα βασίζεται στο
 > [GhostPack/Koh](https://github.com/GhostPack/Koh).
 
 ## Γιατί τα hosts εμπιστεύονται ένα Golden Ticket
@@ -147,27 +150,53 @@ Rubeus (official upstream permalinks):
 
 ## Πώς λειτουργεί
 
-1. Κάνουμε enumerate τα logon sessions (LSA) και κρατάμε τα **Kerberos**.
-2. Για κάθε session, διαβάζουμε τα **domain group SID** (`S-1-5-21-*`) από το session token.
-3. Υπολογίζουμε τη **θεμελιωμένη (authoritative)** συμμετοχή για τον ίδιο χρήστη:
-   - **Primary — Kerberos S4U2Self** (`KERB_S4U_LOGON` μέσω `LsaLogonUser`). Ο machine account
-     ζητά από τον KDC ticket-to-self για impersonation του χρήστη. Ο KDC δημιουργεί
-     **fresh PAC από την τρέχουσα κατάσταση AD**, ανεξάρτητα από το (πιθανώς forged) TGT του χρήστη.
-   - **Fallback — LDAP** recursive group walk (cycle-protected, depth-capped at 64).
-4. Κάνουμε **diff** στα δύο σύνολα και αναφέρουμε:
-   - υπάρχει στο token αλλά **όχι** στο authoritative → **suspicious** (πιθανή πλαστογράφηση, red),
-   - υπάρχει στο authoritative αλλά **όχι** στο token → informational (yellow),
-   - member SID που είναι **user** και όχι group → highlighted.
+1. Η υπηρεσία εγγράφεται πρώτα στο Security Event 4624, έπειτα απαριθμεί τα
+   υπάρχοντα LSA sessions και ξεκινά περιοδικό reconciliation.
+2. Το callback κάνει parse το XML μέσω `Data/@Name`, διατηρεί ολόκληρο το 64-bit
+   `TargetLogonId` και μόνο τοποθετεί candidate σε bounded queue.
+3. Worker επιβεβαιώνει το session με `LsaGetLogonSessionData`. Το τελικό
+   Kerberos φίλτρο βασίζεται στο LSA `AuthenticationPackage`.
+4. Τα token group SID διατηρούνται **μαζί με τα attributes**. Το προαιρετικό
+   `PowerfulOnly` χρησιμοποιεί δομικούς RID/SID ελέγχους και είναι off by default.
+5. Η authoritative membership προέρχεται από S4U2Self με recursive LDAP fallback.
+   Αν αποτύχουν και οι δύο πηγές, το verdict είναι `Unknown`, ποτέ `Clean`.
+6. Το FGT001–FGT010 rule engine γράφει πλήρες αποτέλεσμα στο
+   `FindGT/Operational`. Authz Security summary γράφεται by default μόνο για
+   `Suspicious`.
 
-Επειδή το S4U2Self ρωτά ξανά τον DC με την identity του machine, ένα Golden Ticket στο
-session του χρήστη δεν μπορεί να επηρεάσει την authoritative απάντηση.
+Το CLI και η υπηρεσία χρησιμοποιούν τον ίδιο typed analyzer. Επειδή το S4U2Self
+ρωτά ξανά τον DC με machine identity, ένα Golden Ticket στο user session δεν
+μπορεί να αλλάξει την authoritative απάντηση.
 
 ## Components
 
-| Project                | Purpose                                                                                                      | TFM                       |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------- |
-| **FindGT**             | Main tool: session scan, membership diff, Spectre.Console report, NRPC secure-channel + S4U diagnostics.     | .NET Framework 4.7.2, x64 |
-| **LsaSecretExtractor** | Extracts the machine-account secret / NT hash from LSA (registry decrypt) to a file, for NRPC bootstrapping. | .NET Framework 4.8        |
+| Project | Purpose | Platform |
+| --- | --- | --- |
+| **FindGT** | Διατηρημένο Spectre.Console CLI και NRPC/S4U diagnostics. | .NET Framework 4.8, x64 |
+| **FindGT.Core** | LSA/token ownership, full LUID, membership providers, PowerfulOnly, rules και typed analyzer. | .NET Framework 4.8, x64 |
+| **FindGT.Eventing** | 4624 parser/watcher, bookmark, queue/dedupe και Operational/Authz/JSON sinks. | .NET Framework 4.8, x64 |
+| **FindGT.Service** | Ξεχωριστό `ServiceBase` host με reconciliation, retries, health και safe shutdown. | .NET Framework 4.8, x64 |
+| **FindGT.EventMessages** | Manifest και message-resource DLL για Operational και Authz Security events. | Native x64 |
+| **FindGT.SetupActions** | Ελάχιστα native MSI actions για Authz, ACL και service recovery. | Native x64 |
+| **FindGT.Setup** | WiX 7 x64 per-machine MSI. | WiX Toolset 7.0.0 |
+| **FindGT.Tests** | Unit tests για Core/Eventing/Service/MSI contracts. | MSTest 4.3.3, x64 |
+| **LsaSecretExtractor** | Ξεχωριστό research helper· δεν περιλαμβάνεται στο MSI. | .NET Framework 4.8 |
+
+## Υπηρεσία Windows και MSI
+
+- Service name: `FindGT`, account: `LocalSystem`, startup: Automatic (Delayed Start).
+- Default logon types: 3 (Network) και 10 (RemoteInteractive).
+- Configuration: `%ProgramData%\FindGT\Config\FindGT.settings.json`.
+- Bookmark: `%ProgramData%\FindGT\State\Security.bookmark.xml`.
+- Primary log: Applications and Services Logs → `FindGT/Operational`.
+- Το Security output χρησιμοποιεί Authz. Installer και service δεν αλλάζουν audit policy.
+- Το JSONL είναι off by default και, όταν ενεργοποιείται, γράφει σε protected ProgramData.
+- Το MSI είναι unsigned μέχρι να υπάρξει production certificate· επαληθεύστε SHA-256.
+
+Δείτε [architecture](docs/architecture/service-architecture.md),
+[MSI installation](docs/installation/msi.md),
+[configuration](docs/operations/configuration.md) και
+[troubleshooting](docs/operations/troubleshooting.md).
 
 ## Δείκτες Golden Ticket
 
@@ -278,24 +307,29 @@ KDC-issued tickets σε πραγματικές έρευνες. Χρησιμοπ�
 Σημαντικό: χρησιμοποιείται μόνο ως συμπληρωματικό σήμα, όχι ως αυτόνομο verdict.
 Για κύριες αποφάσεις προτιμήστε τα PAC/token indicators παραπάνω.
 
-## Requirements
+## Απαιτήσεις
 
-- Windows, **domain-joined** host.
-- **Administrator** — the tool elevates to **SYSTEM** (needed for S4U logon and token access).
-- .NET Framework 4.7.2+ (4.8 for LsaSecretExtractor), x64.
-- Visual Studio 2022 / MSBuild; NuGet packages restored.
+- Runtime: domain-joined Windows x64 με .NET Framework 4.8. Ο πρώτος lab target
+  είναι Windows Server 2019.
+- Administrator εγκαθιστά την υπηρεσία, η οποία τρέχει ως LocalSystem. Μόνο το
+  interactive CLI χρησιμοποιεί legacy SYSTEM impersonation όταν απαιτείται.
+- Build: Visual Studio 2022 με MSBuild, Desktop C++/Windows SDK, NuGet CLI,
+  .NET SDK 8+ για WiX SDK restore και WiX Toolset 7.0.0.
+- Το WiX 7 απαιτεί explicit αποδοχή του OSMF EULA `wix7`.
 
 ## Build
 
-```text
-# packages.config project: restore with nuget.exe (dotnet restore does not handle packages.config)
-nuget restore FindGT.sln
-msbuild FindGT.sln /p:Configuration=Release /p:Platform=x64 /m
+```powershell
+.\tools\Build-Release.ps1 -ProductVersion 1.0.0
 ```
 
-## Usage
+Το script επαναφέρει classic `packages.config` και WiX SDK, κάνει build
+`Release|x64`, τρέχει tests, ICE validation και MSI table assertions.
+Output: `FindGT.Setup\bin\x64\Release\FindGT-1.0.0-x64.msi`.
 
-```text
+## Χρήση
+
+```console
 FindGT [OPTIONS] [COMMAND]
 
 OPTIONS:
@@ -312,11 +346,17 @@ COMMANDS:
 
 Default (no command) = scan all Kerberos sessions and print **only discrepancies**.
 
-LsaSecretExtractor:
+Silent MSI install χωρίς άμεση εκκίνηση της υπηρεσίας:
 
-```text
-LsaSecretExtractor --out <path> [--encoding hex|base64|raw] [--secret <name>] [--nthash]
+```powershell
+msiexec.exe /i .\FindGT-1.0.0-x64.msi /qn START_SERVICE=0 `
+  SECURITY_SINK_MODE=SuspiciousOnly ENABLE_JSON_SINK=0 `
+  /L*v .\FindGT-install.log
 ```
+
+Το interactive MSI παρέχει options για service start, existing sessions,
+Security, JSON, PowerfulOnly και config retention. Τα ίδια options είναι public
+MSI properties· δείτε το [installation guide](docs/installation/msi.md).
 
 ## Output
 
@@ -324,25 +364,37 @@ One Spectre.Console table per session: **SID | Name | Comment**, colour-coded
 (red = suspicious, yellow = missing-from-token, green = match, shown with `--verbose`).
 `--html` exports a styled, self-contained UTF-8 HTML document to the current folder.
 
-## Implemented
+Η υπηρεσία γράφει terminal result για κάθε evaluated session στο
+`FindGT/Operational`. Τα events περιέχουν `AnalysisId`, full LUID, trigger
+metadata, verdict, rule IDs, reference status και bounded evidence. Το Security
+event περιέχει μόνο summary και συσχετίζεται μέσω `AnalysisId`.
 
-- [x] Machine-account secret extraction (LSA registry decrypt) — `LsaSecretExtractor`.
-- [x] NRPC Netlogon secure channel (AES) — established & verified against a live DC.
+## Υλοποιημένα
+
+- [x] Διατηρημένο CLI και shared `FindGT.Core` σε .NET Framework 4.8 x64.
+- [x] Full 64-bit LUID, SafeHandle ownership και boot-aware dedupe.
 - [x] S4U2Self authoritative membership (`KERB_S4U_LOGON`).
-- [x] Token-vs-authoritative diff, Golden-Ticket oriented.
-- [x] LDAP fallback (recursive, cycle-protected).
-- [x] Spectre.Console report + `--html`; Spectre.Console.Cli command line with auto-help.
+- [x] LDAP fallback χωρίς success-shaped partial results.
+- [x] Typed verdict και FGT001–FGT010 rule engine.
+- [x] Named-field Event 4624 parser/watcher, bounded queue, bookmark και reconciliation.
+- [x] LocalSystem Windows service με retries, health states και bounded shutdown.
+- [x] Manifest-based Operational, Authz Security και optional JSONL sinks.
+- [x] WiX 7 x64 MSI με interactive/silent options, ACL/Authz/service recovery actions.
+- [x] Unit tests, reproducible build scripts και Windows 2022 CI/release workflows.
+- [x] NRPC και `LsaSecretExtractor` διατηρούνται ως ξεχωριστά research diagnostics.
 
 ## Roadmap / TODO
 
+- [ ] Επαλήθευση MSI install/repair/upgrade/uninstall και event registration σε
+      disposable Windows environment.
+- [ ] End-to-end lab test: legitimate admin, υπάρχον forged session μέσω startup
+      reconciliation και νέο Golden Ticket logon με πραγματικό 4624.
+- [ ] Evidence για PowerfulOnly και DC unavailable → `Unknown`.
+- [ ] Ενεργοποίηση production code signing μετά την παροχή certificate.
 - [ ] **Option B** — fully self-contained raw-Kerberos S4U2Self + U2U (independent of local
       LSASS). Detailed plan: [SlidesAndDocs/OptionB-RawKerberos-S4U2Self.md](SlidesAndDocs/OptionB-RawKerberos-S4U2Self.md).
-- [ ] Standalone MSI package with service mode for continuous checks on new sessions.
 - [ ] Optional / policy-driven response including logoff for suspicious sessions.
-- [ ] Validate the "suspicious" (red) path against a real forged ticket in a lab.
-- [ ] Secret hardening — DPAPI/CredMan storage, restrictive ACLs, field masking.
-- [ ] Broader coverage — cross-domain ExtraSids, multiple DCs, more session types.
-- [ ] Structured per-run log file.
+- [ ] Επέκταση multi-DC/cross-forest validation και SIEM mappings.
 
 > Note: NRPC `NetrLogonSamLogonEx` was evaluated as a membership source but **cannot** return
 > an arbitrary user's groups without that user's credentials (no S4U at the Netlogon level), so

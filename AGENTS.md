@@ -100,6 +100,15 @@ When adding a new `README.<lang>.md` file:
 
 ## Repo-specific technical constraints
 
+- The production solution is intentionally mixed: classic .NET Framework 4.8
+  C# projects, native x64 C++ resource/custom-action projects, and an SDK-style
+  WiX 7 project. Do not replace the documented build with a solution-wide
+  `dotnet build`.
+- Use `tools/Build-Release.ps1` for the production `Release|x64` path. It
+  restores both `packages.config` and WiX SDK dependencies, runs tests, validates
+  the MSI, and asserts installer tables.
+- WiX is pinned to 7.0.0 and requires explicit OSMF EULA ID `wix7`. Do not
+  silently downgrade to WiX 3 or suppress MSI validation globally.
 - Respect the current documented build flow in the README set. Do not assume the repository uses
   a modern SDK-style or `dotnet restore` / `dotnet build` workflow unless the repository is actually migrated.
 - Before changing build or dependency behavior, verify the current project model and keep the
@@ -107,6 +116,8 @@ When adding a new `README.<lang>.md` file:
 - Expect this repository's security-sensitive behavior to be tied to Windows, domain-joined
   testing, elevated execution, and environment-specific validation when changes touch sessions,
   tokens, LSA, Kerberos, or related flows.
+- Live lab workflows must remain manual-only. They must not generate Golden
+  Tickets, store KRBTGT material, or upload raw credential/ticket artifacts.
 - Stack constraints that materially affect edits should remain documented here at a high level.
   Example: if the active codebase still relies on older language or project-system constraints,
   do not introduce newer assumptions without updating the repository deliberately.

@@ -1,0 +1,118 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PRODUCT_VERSION: 1.0.0
+
+jobs:
+  build-test-msi:
+    runs-on: windows-2022
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Show tool versions
+        shell: pwsh
+        run: |
+          dotnet --info
+          nuget help | Select-Object -First 2
+          & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -products * -property installationVersion
+
+      - name: Build upgrade baseline MSI
+        shell: pwsh
+        run: |
+          .\tools\Build-Release.ps1 -ProductVersion 0.9.0 -SkipTests
+          Copy-Item .\FindGT.Setup\bin\x64\Release\FindGT-0.9.0-x64.msi `
+            (Join-Path $env:RUNNER_TEMP "FindGT-0.9.0-x64.msi")
+
+      - name: Build and validate current MSI
+        shell: pwsh
+        run: |
+          .\tools\Build-Release.ps1 `
+            -ProductVersion $env:PRODUCT_VERSION `
+            -SkipTests
+
+      - name: Run unit tests
+        shell: pwsh
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -products * -property installationPath
+          $vstest = Join-Path $vs `
+            "Common7\IDE\CommonExtensions\Microsoft\TestWindow\vstest.console.exe"
+          & $vstest .\FindGT.Tests\bin\x64\Release\FindGT.Tests.dll `
+            /Platform:x64 `
+            /Logger:"trx;LogFileName=findgt-tests.trx" `
+            /ResultsDirectory:.\TestResults
+
+      - name: Stage artifacts
+        shell: pwsh
+        run: |
+          .\tools\Stage-Artifacts.ps1 -ProductVersion $env:PRODUCT_VERSION
+
+      - name: Smoke install, repair surfaces, and uninstall
+        shell: pwsh
+        run: |
+          .\tools\Smoke-Install.ps1 `
+            -MsiPath ".\artifacts\FindGT-$env:PRODUCT_VERSION-x64.msi" `
+            -InstallLog ".\msi-install.log" `
+            -RepairLog ".\msi-repair.log" `
+            -UninstallLog ".\msi-uninstall.log"
+
+      - name: Smoke major upgrade
+        shell: pwsh
+        run: |
+          .\tools\Smoke-Upgrade.ps1 `
+            -OldMsiPath (Join-Path $env:RUNNER_TEMP "FindGT-0.9.0-x64.msi") `
+            -NewMsiPath ".\artifacts\FindGT-$env:PRODUCT_VERSION-x64.msi" `
+            -OldInstallLog ".\msi-old-install.log" `
+            -UpgradeLog ".\msi-upgrade.log" `
+            -UninstallLog ".\msi-upgrade-uninstall.log"
+
+      - name: Collect checksums and logs
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .\artifacts -Force | Out-Null
+          foreach ($path in @(
+            ".\TestResults\findgt-tests.trx",
+            ".\msi-install.log",
+            ".\msi-repair.log",
+            ".\msi-uninstall.log",
+            ".\msi-old-install.log",
+            ".\msi-upgrade.log",
+            ".\msi-upgrade-uninstall.log"
+          )) {
+            if (Test-Path -LiteralPath $path) {
+              Copy-Item -LiteralPath $path -Destination .\artifacts
+            }
+          }
+          .\tools\Write-Checksums.ps1
+
+      - name: Upload CI artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: FindGT-${{ env.PRODUCT_VERSION }}-windows-x64
+          path: artifacts
+          if-no-files-found: error
+          retention-days: 14

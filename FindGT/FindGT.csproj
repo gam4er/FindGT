@@ -8,7 +8,7 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>FindGT</RootNamespace>
     <AssemblyName>FindGT</AssemblyName>
-    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <Deterministic>true</Deterministic>
@@ -106,29 +106,23 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Creds.cs" />
-    <Compile Include="Find.cs" />
-    <Compile Include="Helpers.cs" />
-    <Compile Include="Interop.cs" />
-    <Compile Include="LUID.cs" />
     <Compile Include="Md4.cs" />
     <Compile Include="NetlogonValidationSamInfo.cs" />
     <Compile Include="Nrpc.cs" />
-    <Compile Include="S4U.cs" />
-    <Compile Include="Membership\MembershipModels.cs" />
-    <Compile Include="Membership\SidUtil.cs" />
-    <Compile Include="Membership\S4UMembershipProvider.cs" />
-    <Compile Include="Membership\LdapMembershipProvider.cs" />
-    <Compile Include="Membership\MembershipComparer.cs" />
     <Compile Include="Reporting\SessionReport.cs" />
     <Compile Include="Reporting\SpectreReporter.cs" />
     <Compile Include="Reporting\Ui.cs" />
     <Compile Include="Cli\AppRunner.cs" />
     <Compile Include="Cli\Commands.cs" />
+    <Compile Include="Cli\SystemContext.cs" />
     <Compile Include="FindGT.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="SecBuffer.cs" />
-    <Compile Include="SecBufferDesc.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\FindGT.Core\FindGT.Core.csproj">
+      <Project>{E922EF3C-B411-45C0-BC6B-4B00946C5C0D}</Project>
+      <Name>FindGT.Core</Name>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<instrumentationManifest
+  xmlns="http://schemas.microsoft.com/win/2004/08/events"
+  xmlns:win="http://manifests.microsoft.com/win/2004/08/windows/events"
+  xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <instrumentation>
+    <events>
+      <provider
+        name="FindGT"
+        guid="{24F97934-34DF-4F64-B07D-5744F7D46EED}"
+        symbol="FindGTProvider"
+        resourceFileName="%ProgramFiles%\FindGT\FindGT.EventMessages.dll"
+        messageFileName="%ProgramFiles%\FindGT\FindGT.EventMessages.dll"
+        message="$(string.ProviderName)">
+        <channels>
+          <channel
+            chid="Operational"
+            name="FindGT/Operational"
+            type="Operational"
+            enabled="true"
+            value="16"
+            message="$(string.ChannelOperational)" />
+        </channels>
+        <templates>
+          <template tid="PayloadTemplate">
+            <data name="Payload" inType="win:UnicodeString" />
+          </template>
+        </templates>
+        <events>
+          <event value="1000" symbol="ServiceStarted" channel="Operational" level="win:Informational" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1001" symbol="SessionAnalysisClean" channel="Operational" level="win:Informational" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1002" symbol="SessionAnalysisSuspicious" channel="Operational" level="win:Warning" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1003" symbol="SessionAnalysisUnknown" channel="Operational" level="win:Warning" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1004" symbol="SessionAnalysisError" channel="Operational" level="win:Error" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1005" symbol="SessionSkippedNotPowerful" channel="Operational" level="win:Informational" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1006" symbol="SessionSkippedByPolicy" channel="Operational" level="win:Informational" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1010" symbol="SecuritySubscriptionError" channel="Operational" level="win:Warning" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1011" symbol="SessionRecoveredByReconciliation" channel="Operational" level="win:Informational" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1012" symbol="QueuePressure" channel="Operational" level="win:Warning" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1013" symbol="SecuritySinkUnavailable" channel="Operational" level="win:Warning" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1014" symbol="BookmarkInvalid" channel="Operational" level="win:Warning" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1015" symbol="DomainControllerUnavailable" channel="Operational" level="win:Warning" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1016" symbol="ConfigurationInvalid" channel="Operational" level="win:Warning" template="PayloadTemplate" message="$(string.EventMessage)" />
+          <event value="1020" symbol="ServiceStopped" channel="Operational" level="win:Informational" template="PayloadTemplate" message="$(string.EventMessage)" />
+        </events>
+      </provider>
+    </events>
+  </instrumentation>
+  <localization>
+    <resources culture="en-US">
+      <stringTable>
+        <string id="ProviderName" value="FindGT" />
+        <string id="ChannelOperational" value="FindGT Operational" />
+        <string id="EventMessage" value="%1" />
+      </stringTable>
+    </resources>
+  </localization>
+</instrumentationManifest>

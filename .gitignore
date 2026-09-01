@@ -36,6 +36,9 @@ bld/
 [Oo]ut/
 [Ll]og/
 [Ll]ogs/
+/FindGT.EventMessages/FindGT.rc
+/FindGT.EventMessages/FindGTTEMP.BIN
+/FindGT.EventMessages/MSG*.bin
 
 # Visual Studio 2015/2017 cache/options directory
 .vs/
@@ -367,7 +370,6 @@ MigrationBackup/
 FodyWeavers.xsd
 
 # Local research/reference materials - never commit
-/Docs
 /Docs/Patents/US9866566B2/
 
 README.png

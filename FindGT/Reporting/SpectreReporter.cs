@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security;
 using Spectre.Console;
 using FindGT.Membership;
 
@@ -17,6 +18,8 @@ namespace FindGT.Reporting
         private readonly bool _html;
         private int _sessionCount;
         private int _suspiciousSessions;
+        private int _unknownSessions;
+        private int _notEvaluatedSessions;
 
         public SpectreReporter(bool verbose, bool html)
         {
@@ -35,11 +38,18 @@ namespace FindGT.Reporting
         {
             _sessionCount++;
             if (r.HasSuspicious) _suspiciousSessions++;
+            if (r.IsUnknown) _unknownSessions++;
+            if (r.IsNotEvaluated) _notEvaluatedSessions++;
 
             string who = r.UserName ?? r.UserSid ?? "?";
             string title = "Сессия " + (r.Luid ?? "?") + "  |  " + who + "  |  " + (r.AuthPackage ?? "?");
+            string ruleStyle = r.HasSuspicious
+                ? "red"
+                : (r.IsUnknown
+                    ? "yellow"
+                    : (r.IsNotEvaluated ? "grey" : "green"));
             AnsiConsole.Write(new Rule("[bold]" + Markup.Escape(title) + "[/]")
-                .LeftJustified().RuleStyle(r.HasSuspicious ? "red" : "green"));
+                .LeftJustified().RuleStyle(ruleStyle));
 
             if (r.ReferenceOk)
             {
@@ -48,9 +58,17 @@ namespace FindGT.Reporting
             }
             else
             {
-                AnsiConsole.MarkupLine("  Эталон: [red]ОШИБКА (" + Markup.Escape(r.ReferenceSource ?? "") + ")[/] — " +
-                    Markup.Escape(r.ReferenceError ?? ""));
+                string label = r.IsNotEvaluated ? "НЕ ОЦЕНИВАЛОСЬ" : "ОШИБКА";
+                AnsiConsole.MarkupLine(
+                    "  Эталон: [yellow]" + label + " (" +
+                    Markup.Escape(r.ReferenceSource ?? "") + ")[/] — " +
+                    Markup.Escape(r.ReferenceError ?? r.Reason.ToString()));
             }
+
+            if (r.RuleIds.Count != 0)
+                AnsiConsole.MarkupLine(
+                    "  Правила: [bold]" +
+                    Markup.Escape(String.Join(", ", r.RuleIds)) + "[/]");
 
             var shown = new List<DiffRow>();
             foreach (var row in r.Rows)
@@ -59,7 +77,12 @@ namespace FindGT.Reporting
 
             if (shown.Count == 0)
             {
-                AnsiConsole.MarkupLine("  [green]✓ Расхождений нет[/]");
+                if (r.IsNotEvaluated)
+                    AnsiConsole.MarkupLine("  [grey]Сессия пропущена политикой анализа.[/]");
+                else if (r.IsUnknown)
+                    AnsiConsole.MarkupLine("  [yellow]Анализ не завершён: авторитетный эталон недоступен.[/]");
+                else
+                    AnsiConsole.MarkupLine("  [green]✓ Расхождений нет[/]");
                 AnsiConsole.WriteLine();
                 return;
             }
@@ -112,7 +135,9 @@ namespace FindGT.Reporting
             AnsiConsole.Write(new Rule("[bold]Итог[/]").LeftJustified().RuleStyle("grey"));
             string color = _suspiciousSessions > 0 ? "red" : "green";
             AnsiConsole.MarkupLine("Сессий проверено: [bold]" + _sessionCount + "[/]   " +
-                "с расхождениями: [bold " + color + "]" + _suspiciousSessions + "[/]");
+                "с расхождениями: [bold " + color + "]" + _suspiciousSessions + "[/]   " +
+                "не определено: [bold yellow]" + _unknownSessions + "[/]   " +
+                "не оценивалось: [grey]" + _notEvaluatedSessions + "[/]");
 
             if (_html)
             {
@@ -128,11 +153,34 @@ namespace FindGT.Reporting
                     File.WriteAllText(path, doc, new System.Text.UTF8Encoding(false));
                     AnsiConsole.MarkupLine("HTML-отчёт сохранён: [blue]" + Markup.Escape(path) + "[/]");
                 }
-                catch (Exception ex)
+                catch (IOException ex)
                 {
-                    AnsiConsole.MarkupLine("[red]Не удалось сохранить HTML:[/] " + Markup.Escape(ex.Message));
+                    ReportHtmlFailure(ex);
+                }
+                catch (UnauthorizedAccessException ex)
+                {
+                    ReportHtmlFailure(ex);
+                }
+                catch (SecurityException ex)
+                {
+                    ReportHtmlFailure(ex);
+                }
+                catch (NotSupportedException ex)
+                {
+                    ReportHtmlFailure(ex);
+                }
+                catch (ArgumentException ex)
+                {
+                    ReportHtmlFailure(ex);
                 }
             }
+        }
+
+        private static void ReportHtmlFailure(Exception exception)
+        {
+            AnsiConsole.MarkupLine(
+                "[red]Не удалось сохранить HTML:[/] " +
+                Markup.Escape(exception.Message));
         }
     }
 }

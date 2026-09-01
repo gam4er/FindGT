@@ -168,7 +168,7 @@ namespace FindGT
             if (!aes)
                 log("[!] WARNING: DC did not negotiate AES; this client only implements the AES credential path.");
             if (!verified)
-                throw new Exception("Server credential verification FAILED — session-key mismatch " +
+                throw new InvalidOperationException("Server credential verification FAILED — session-key mismatch " +
                                     "(wrong machine secret or crypto mismatch).");
 
             log("[+] Server credential VERIFIED — secure channel established.");
@@ -353,19 +353,49 @@ namespace FindGT
                         Console.WriteLine("[+] WINNER derivation: " + c.Key);
                         return;
                     }
-                    catch (Exception ex)
+                    catch (System.ComponentModel.Win32Exception ex)
                     {
-                        string m = ex.Message;
-                        int idx = m.IndexOf("NTSTATUS");
-                        Console.WriteLine("fail" + (idx >= 0 ? " (" + m.Substring(idx, Math.Min(20, m.Length - idx)) + ")" : ""));
+                        PrintCandidateFailure(ex);
+                    }
+                    catch (CryptographicException ex)
+                    {
+                        PrintCandidateFailure(ex);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        PrintCandidateFailure(ex);
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        PrintCandidateFailure(ex);
                     }
                 }
                 Console.WriteLine();
                 Console.WriteLine("[!] No candidate derivation succeeded.");
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
-                Console.WriteLine("[!] Raw secure-channel test FAILED: " + ex.Message);
+                PrintTestFailure("Raw secure-channel", ex);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                PrintTestFailure("Raw secure-channel", ex);
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                PrintTestFailure("Raw secure-channel", ex);
+            }
+            catch (CryptographicException ex)
+            {
+                PrintTestFailure("Raw secure-channel", ex);
+            }
+            catch (ArgumentException ex)
+            {
+                PrintTestFailure("Raw secure-channel", ex);
+            }
+            catch (InvalidOperationException ex)
+            {
+                PrintTestFailure("Raw secure-channel", ex);
             }
         }
 
@@ -428,10 +458,51 @@ namespace FindGT
                 Console.WriteLine();
                 Console.WriteLine("[+] SECURE CHANNEL OK (AES=" + sc.AesNegotiated + ", AccountRid=" + sc.AccountRid + ").");
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
-                Console.WriteLine("[!] Secure channel test FAILED: " + ex.Message);
+                PrintTestFailure("Secure channel", ex);
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                PrintTestFailure("Secure channel", ex);
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                PrintTestFailure("Secure channel", ex);
+            }
+            catch (CryptographicException ex)
+            {
+                PrintTestFailure("Secure channel", ex);
+            }
+            catch (ArgumentException ex)
+            {
+                PrintTestFailure("Secure channel", ex);
+            }
+            catch (InvalidOperationException ex)
+            {
+                PrintTestFailure("Secure channel", ex);
+            }
+        }
+
+        private static void PrintCandidateFailure(Exception exception)
+        {
+            string message = exception.Message;
+            int index = message.IndexOf("NTSTATUS", StringComparison.Ordinal);
+            Console.WriteLine(
+                "fail" +
+                (index >= 0
+                    ? " (" + message.Substring(
+                        index,
+                        Math.Min(20, message.Length - index)) + ")"
+                    : ""));
+        }
+
+        private static void PrintTestFailure(
+            string operation,
+            Exception exception)
+        {
+            Console.WriteLine(
+                "[!] " + operation + " test FAILED: " + exception.Message);
         }
 
         #region helpers

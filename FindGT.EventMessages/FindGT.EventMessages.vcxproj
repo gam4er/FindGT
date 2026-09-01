@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="Current"
+         xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{430A76BC-8566-4386-9AA6-E4E0F6E0A412}</ProjectGuid>
+    <RootNamespace>FindGT.EventMessages</RootNamespace>
+    <Keyword>Win32Proj</Keyword>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"
+                 Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"
+                 Label="Configuration">
+    <ConfigurationType>Utility</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(ProjectDir)bin\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)obj\$(Platform)\$(Configuration)\</IntDir>
+    <GeneratedDir>$(ProjectDir)obj\$(Platform)\$(Configuration)</GeneratedDir>
+    <EventOutputDir>$(ProjectDir)bin\$(Platform)\$(Configuration)</EventOutputDir>
+    <TargetName>FindGT.EventMessages</TargetName>
+    <TargetExt>.dll</TargetExt>
+  </PropertyGroup>
+  <ItemGroup>
+    <CustomBuild Include="FindGT.man">
+      <Command>
+if not exist "$(GeneratedDir)" mkdir "$(GeneratedDir)"
+if not exist "$(EventOutputDir)" mkdir "$(EventOutputDir)"
+mc.exe -um -h "$(GeneratedDir)" -r "$(GeneratedDir)" "$(ProjectDir)FindGT.man"
+mc.exe -um -h "$(GeneratedDir)" -r "$(GeneratedDir)" "$(ProjectDir)FindGT.Security.mc"
+rc.exe /nologo /fo "$(GeneratedDir)\FindGT.res" "$(GeneratedDir)\FindGT.rc"
+rc.exe /nologo /fo "$(GeneratedDir)\FindGT.Security.res" "$(GeneratedDir)\FindGT.Security.rc"
+link.exe /nologo /dll /noentry /machine:x64 /out:"$(EventOutputDir)\FindGT.EventMessages.dll" "$(GeneratedDir)\FindGT.res"
+link.exe /nologo /dll /noentry /machine:x64 /out:"$(EventOutputDir)\FindGT.SecurityMessages.dll" "$(GeneratedDir)\FindGT.Security.res"
+copy /Y "$(ProjectDir)FindGT.man" "$(EventOutputDir)\FindGT.man" &gt;nul
+      </Command>
+      <Outputs>$(EventOutputDir)\FindGT.EventMessages.dll;$(EventOutputDir)\FindGT.SecurityMessages.dll;$(EventOutputDir)\FindGT.man</Outputs>
+      <AdditionalInputs>$(ProjectDir)FindGT.Security.mc</AdditionalInputs>
+    </CustomBuild>
+    <None Include="FindGT.Security.mc" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

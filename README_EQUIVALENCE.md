@@ -13,9 +13,13 @@ Governance rules for README parity live in [AGENTS.md](AGENTS.md). This file rec
 ## Current verification snapshot
 
 - Baseline for semantic verification: [README.ru.md](README.ru.md).
-- [README.md](README.md): synchronized against the current Russian baseline, including updated Mermaid layout for the first two diagrams and the new indicator illustrations.
-- [README.el.md](README.el.md): synchronized against the current Russian baseline, including updated Mermaid layout for the first two diagrams, corrected illustration paths, and the new indicator illustrations.
-- [AGENTS.md](AGENTS.md): now carries the durable README parity governance rules; canonical-source consistency checked.
+- [README.md](README.md): synchronized with the Russian production-service,
+  MSI, build, output, implemented-state, and roadmap updates.
+- [README.el.md](README.el.md): synchronized with the same production-service,
+  MSI, build, output, implemented-state, and roadmap updates.
+- [AGENTS.md](AGENTS.md): records the mixed .NET Framework/C++/WiX 7 build,
+  validation path, OSMF requirement, and manual-only lab constraint.
+- Verification date: 2026-09-01.
 
 ## Update rule
 
